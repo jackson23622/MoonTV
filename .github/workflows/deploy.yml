@@ -29,7 +29,7 @@ jobs:
           node-version: lts/*
 
       - name: Install step
-        run: "npm install"
+        run: "pnpm install --frozen-lockfile && pnpm run pages:build"
 
       - name: Build step
         run: "npm run build && (cp -r public .next/standalone/public; cp -r .next/static .next/standalone/.next/static; mv .next/standalone/server.js .next/standalone/server.cjs)"
@@ -39,6 +39,6 @@ jobs:
         with:
           project: "jackson2362-moontv-87"
           entrypoint: "./server.cjs"
-          root: ".next/standalone"
+          root: ".vercel/output/static"
           
           
