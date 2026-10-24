@@ -22,7 +22,16 @@ export async function GET(request: Request) {
   }
 
   const apiSites = await getAvailableApiSites();
-  const searchPromises = apiSites.map((site) => searchFromApi(site, query));
+  // 总时限：慢源不拖累整体，超时的源本次按无结果处理
+  const SEARCH_BUDGET_MS = 7000;
+  const searchPromises = apiSites.map((site) =>
+    Promise.race([
+      searchFromApi(site, query).catch(() => []),
+      new Promise<Awaited<ReturnType<typeof searchFromApi>>>((resolve) =>
+        setTimeout(() => resolve([]), SEARCH_BUDGET_MS)
+      ),
+    ])
+  );
 
   try {
     const results = await Promise.all(searchPromises);

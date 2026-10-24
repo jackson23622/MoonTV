@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { CheckCircle, Heart, Link, PlayCircleIcon } from 'lucide-react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -14,9 +13,9 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { SearchResult } from '@/lib/types';
-import { processImageUrl } from '@/lib/utils';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
+import PosterImage from '@/components/PosterImage';
 
 interface VideoCardProps {
   id?: string;
@@ -277,13 +276,11 @@ export default function VideoCard({
         {/* 骨架屏 */}
         {!isLoading && <ImagePlaceholder aspectRatio='aspect-[2/3]' />}
         {/* 图片 */}
-        <Image
-          src={processImageUrl(actualPoster)}
+        <PosterImage
+          src={actualPoster}
           alt={actualTitle}
-          fill
-          className='object-cover'
-          referrerPolicy='no-referrer'
-          onLoadingComplete={() => setIsLoading(true)}
+          className='absolute inset-0 h-full w-full object-cover'
+          onLoad={() => setIsLoading(true)}
         />
 
         {/* 悬浮遮罩 */}

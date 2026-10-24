@@ -68,6 +68,11 @@ export default async function RootLayout({
   return (
     <html lang='zh-CN' suppressHydrationWarning>
       <head>
+        {/* 提前建立到豆瓣图床的连接，加快封面首屏加载 */}
+        <link rel='preconnect' href='https://img9.doubanio.com' />
+        <link rel='preconnect' href='https://img3.doubanio.com' />
+        <link rel='dns-prefetch' href='https://img1.doubanio.com' />
+        <link rel='dns-prefetch' href='https://img2.doubanio.com' />
         {/* 将配置序列化后直接写入脚本，浏览器端可通过 window.RUNTIME_CONFIG 获取 */}
         {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script
