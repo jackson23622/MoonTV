@@ -2,7 +2,15 @@
 'use client';
 
 import Hls from 'hls.js';
-import { RefreshCw, Search, Tv2 } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  Link2,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  Tv2,
+} from 'lucide-react';
 import {
   Suspense,
   useCallback,
@@ -12,23 +20,45 @@ import {
   useState,
 } from 'react';
 
+import {
+  buildLiveData,
+  DEFAULT_SUBSCRIPTION,
+  LiveChannel,
+  LiveData,
+  parseSubscription,
+  SUBSCRIPTION_KEY,
+} from '@/lib/live-subscription';
+
 import PageLayout from '@/components/PageLayout';
 
-interface LiveChannel {
-  name: string;
-  logo?: string;
-  urls: string[];
-  hd?: boolean;
-  height?: number;
+function readSubscription(): string {
+  try {
+    return localStorage.getItem(SUBSCRIPTION_KEY) || DEFAULT_SUBSCRIPTION;
+  } catch {
+    return DEFAULT_SUBSCRIPTION;
+  }
 }
-interface LiveGroup {
-  name: string;
-  channels: LiveChannel[];
-}
-interface LiveData {
-  updatedAt: string;
-  sources: { name: string; url: string }[];
-  groups: LiveGroup[];
+
+/** 同站地址直接请求；其他站点经本站服务端代为拉取（订阅站通常不允许浏览器跨域读取） */
+async function fetchSubscriptionText(url: string): Promise<string> {
+  const target = new URL(url, window.location.href);
+  const sameSite = target.origin === window.location.origin;
+  const res = await fetch(
+    sameSite
+      ? target.pathname + target.search
+      : `/api/live/subscription?url=${encodeURIComponent(target.toString())}`,
+    { cache: 'no-cache' }
+  );
+  if (!res.ok) {
+    let msg = 'HTTP ' + res.status;
+    try {
+      msg = (await res.json()).error || msg;
+    } catch {
+      // ignore
+    }
+    throw new Error(msg);
+  }
+  return res.text();
 }
 
 const LAST_KEY = 'live_last_channel';
@@ -45,38 +75,86 @@ function LivePageClient() {
     'idle' | 'loading' | 'playing' | 'failed'
   >('idle');
 
+  const [subUrl, setSubUrl] = useState<string>(DEFAULT_SUBSCRIPTION);
+  const [subInput, setSubInput] = useState<string>(DEFAULT_SUBSCRIPTION);
+  const [subOpen, setSubOpen] = useState(false);
+  const [subLoading, setSubLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 加载频道数据
-  useEffect(() => {
-    fetch('/live/channels.json', { cache: 'no-cache' })
-      .then((r) => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
-      .then((d: LiveData) => {
-        setData(d);
-        setGroup(d.groups[0]?.name || '');
-        try {
-          const last = localStorage.getItem(LAST_KEY);
-          const all = d.groups.flatMap((g) => g.channels);
-          const ch =
-            (last && all.find((c) => c.name === last)) ||
-            d.groups[0]?.channels[0];
-          if (ch) {
-            const g = d.groups.find((x) => x.channels.includes(ch));
-            if (g) setGroup(g.name);
-            setCurrent(ch);
-            setLineIndex(0);
-          }
-        } catch {
-          // ignore
-        }
-      })
-      .catch((e) => setError('直播频道加载失败：' + e.message));
+  // 加载直播订阅：订阅里的频道 + 本站检测过的网页可播线路
+  const loadSubscription = useCallback(async (url: string) => {
+    setSubLoading(true);
+    setError(null);
+    try {
+      const [text, verified] = await Promise.all([
+        fetchSubscriptionText(url),
+        fetch('/live/channels.json', { cache: 'no-cache' })
+          .then((r) => (r.ok ? (r.json() as Promise<LiveData>) : null))
+          .catch(() => null),
+      ]);
+      const entries = parseSubscription(text);
+      if (!entries.length) throw new Error('订阅里没有可识别的频道');
+      const d = buildLiveData(entries, verified);
+      setData(d);
+      setSubUrl(url);
+
+      const all = d.groups.flatMap((g) => g.channels);
+      let last: string | null = null;
+      try {
+        last = localStorage.getItem(LAST_KEY);
+      } catch {
+        // ignore
+      }
+      const ch =
+        (last && all.find((c) => c.name === last && !c.tvOnly)) ||
+        all.find((c) => !c.tvOnly) ||
+        null;
+      const g = ch
+        ? d.groups.find((x) => x.channels.includes(ch))
+        : d.groups[0];
+      setGroup(g?.name || '');
+      setCurrent(ch);
+      setLineIndex(0);
+    } catch (e) {
+      setError('直播订阅加载失败：' + (e as Error).message);
+      setData(null);
+    } finally {
+      setSubLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    const url = readSubscription();
+    setSubInput(url);
+    loadSubscription(url);
+  }, [loadSubscription]);
+
+  const saveSubscription = (url: string) => {
+    const value = url.trim() || DEFAULT_SUBSCRIPTION;
+    try {
+      if (value === DEFAULT_SUBSCRIPTION)
+        localStorage.removeItem(SUBSCRIPTION_KEY);
+      else localStorage.setItem(SUBSCRIPTION_KEY, value);
+    } catch {
+      // ignore
+    }
+    setSubInput(value);
+    loadSubscription(value);
+  };
+
+  const copySubscription = async () => {
+    try {
+      await navigator.clipboard.writeText(subUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // ignore
+    }
+  };
 
   const cleanup = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -100,7 +178,11 @@ function LivePageClient() {
     const video = videoRef.current;
     if (!video || !current) return;
     const url = current.urls[lineIndex];
-    if (!url) return;
+    if (!url || current.tvOnly) {
+      cleanup();
+      setStatus('failed');
+      return;
+    }
 
     cleanup();
     setStatus('loading');
@@ -181,7 +263,16 @@ function LivePageClient() {
     return data.groups.find((g) => g.name === group)?.channels || [];
   }, [data, group, keyword]);
 
-  const updatedText = data
+  const webPlayable = data
+    ? data.groups.reduce(
+        (a, g) => a + g.channels.filter((c) => !c.tvOnly).length,
+        0
+      )
+    : 0;
+  const totalChannels = data
+    ? data.groups.reduce((a, g) => a + g.channels.length, 0)
+    : 0;
+  const updatedText = data?.updatedAt
     ? new Date(data.updatedAt).toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
         hour12: false,
@@ -201,7 +292,72 @@ function LivePageClient() {
               频道更新于 {updatedText}
             </span>
           )}
+          <button
+            onClick={() => setSubOpen((v) => !v)}
+            className='ml-auto flex items-center gap-1 rounded-lg px-3 py-1.5 text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+          >
+            <Link2 className='h-4 w-4' />
+            直播订阅
+          </button>
         </div>
+
+        {subOpen && (
+          <div className='mb-4 rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-gray-50/80 dark:bg-gray-800/60'>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+              直播订阅地址（m3u / txt）
+            </label>
+            <div className='flex flex-col sm:flex-row gap-2'>
+              <input
+                value={subInput}
+                onChange={(e) => setSubInput(e.target.value)}
+                onKeyDown={(e) =>
+                  e.key === 'Enter' && saveSubscription(subInput)
+                }
+                placeholder={DEFAULT_SUBSCRIPTION}
+                className='flex-1 h-10 rounded-lg bg-white py-2 px-3 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700'
+              />
+              <div className='flex gap-2'>
+                <button
+                  onClick={() => saveSubscription(subInput)}
+                  disabled={subLoading}
+                  className='h-10 px-4 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm'
+                >
+                  {subLoading ? '加载中…' : '保存并加载'}
+                </button>
+                <button
+                  onClick={() => saveSubscription(DEFAULT_SUBSCRIPTION)}
+                  title='恢复默认订阅'
+                  className='h-10 px-3 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-sm flex items-center gap-1'
+                >
+                  <RotateCcw className='h-4 w-4' />
+                  默认
+                </button>
+                <button
+                  onClick={copySubscription}
+                  title='复制当前订阅地址'
+                  className='h-10 px-3 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-sm flex items-center gap-1'
+                >
+                  {copied ? (
+                    <Check className='h-4 w-4' />
+                  ) : (
+                    <Copy className='h-4 w-4' />
+                  )}
+                  {copied ? '已复制' : '复制'}
+                </button>
+              </div>
+            </div>
+            <p className='mt-2 text-xs text-gray-500 dark:text-gray-400 leading-5'>
+              当前订阅 {totalChannels} 个频道，网页可播 {webPlayable}{' '}
+              个。电视客户端（OrionTV「设置 → 直播源」）可填同一地址：
+              <span className='font-mono break-all'>
+                {' '}
+                {DEFAULT_SUBSCRIPTION}
+              </span>
+              。只有 http
+              线路的频道浏览器无法播放，标为「电视」，请在电视上观看。
+            </p>
+          </div>
+        )}
 
         {error && <div className='text-red-500 py-10 text-center'>{error}</div>}
 
@@ -226,8 +382,10 @@ function LivePageClient() {
                 )}
                 {status === 'failed' && (
                   <div className='absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/90 text-sm bg-black/70'>
-                    <span>
-                      {current?.name} 所有线路暂时无法播放，请换个频道试试
+                    <span className='px-4 text-center'>
+                      {current?.tvOnly
+                        ? `${current.name} 只有 http 线路，浏览器无法播放，请在电视客户端观看`
+                        : `${current?.name} 所有线路暂时无法播放，请换个频道试试`}
                     </span>
                     <button
                       onClick={() => {
@@ -335,6 +493,8 @@ function LivePageClient() {
                     key={ch.name}
                     onClick={() => selectChannel(ch)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left text-sm transition-colors ${
+                      ch.tvOnly ? 'opacity-60 ' : ''
+                    }${
                       current?.name === ch.name
                         ? 'bg-green-500/20 text-green-700 dark:text-green-400 ring-1 ring-green-500/40'
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-gray-800/70 dark:text-gray-300 dark:hover:bg-gray-700'
@@ -357,18 +517,27 @@ function LivePageClient() {
                       <Tv2 className='h-5 w-5 flex-shrink-0 opacity-60' />
                     )}
                     <span className='truncate'>{ch.name}</span>
-                    {ch.hd && (
-                      <span className='ml-auto flex-shrink-0 rounded px-1 text-[10px] leading-4 bg-green-600/90 text-white'>
-                        高清
+                    {ch.tvOnly ? (
+                      <span className='ml-auto flex-shrink-0 rounded px-1 text-[10px] leading-4 bg-gray-400/80 text-white dark:bg-gray-600'>
+                        电视
                       </span>
+                    ) : (
+                      ch.hd && (
+                        <span className='ml-auto flex-shrink-0 rounded px-1 text-[10px] leading-4 bg-green-600/90 text-white'>
+                          高清
+                        </span>
+                      )
                     )}
                   </button>
                 ))}
               </div>
               {data && (
                 <p className='mt-3 text-xs text-gray-400 dark:text-gray-500'>
-                  频道来自 GitHub：{data.sources.map((s) => s.name).join('、')}
-                  ，每 6 小时自动检测更新。
+                  {subUrl === DEFAULT_SUBSCRIPTION
+                    ? `频道来自 GitHub：${(data.sources || [])
+                        .map((x) => x.name)
+                        .join('、')}，每 6 小时自动检测更新。`
+                    : `当前订阅：${subUrl}`}
                 </p>
               )}
             </div>
