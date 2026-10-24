@@ -41,5 +41,16 @@ jobs:
           else
             git commit -m "chore: 自动换源 $(TZ=Asia/Shanghai date +%F)"
           fi
-          git pull --rebase origin ${{ github.ref_name }}
-          git push
+          # 生成文件以本次检测结果为准：推送被拒（期间有其他提交）时，基于最新远端重放本次结果再推
+          mkdir -p /tmp/gen && for f in config.json .github/source-report.md; do [ -f "$f" ] && mkdir -p "/tmp/gen/$(dirname "$f")" && cp "$f" "/tmp/gen/$f" || true; done
+          msg="$(git log -1 --format=%B)"
+          for i in 1 2 3; do
+            git push && exit 0
+            git fetch origin ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
+            cp -r /tmp/gen/. .
+            git add -A config.json .github/source-report.md
+            git diff --cached --quiet && exit 0
+            git commit -m "$msg"
+          done
+          exit 1
