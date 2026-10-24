@@ -36,12 +36,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in public/live/channels.json .github/live-report.md; do [ -f "$f" ] && git add "$f"; done
+          for f in public/live/channels.json public/tv/live.m3u public/tv/live.txt .github/live-report.md; do [ -f "$f" ] && git add "$f"; done
           if git diff --cached --quiet; then
             echo "无变化"
             exit 0
           fi
-          if git diff --cached --quiet -- public/live/channels.json; then
+          if git diff --cached --quiet -- public/live/channels.json public/tv/; then
             git commit -m "chore: 更新直播源检测报告 [skip ci]"
           else
             git commit -m "chore: 自动更新直播频道 $(TZ=Asia/Shanghai date '+%F %H:%M')"
