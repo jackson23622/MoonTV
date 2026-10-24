@@ -80,7 +80,7 @@ const PROVINCE_EN = {
   shaanxi: '陕西', shandong: '山东', dragon: '东方', shanxi: '山西', shenzhen: '深圳', sichuan: '四川',
   tianjin: '天津', xinjiang: '新疆', xizang: '西藏', tibet: '西藏', yunnan: '云南', zhejiang: '浙江',
 };
-const NAME_ALIAS = { 黑龙卫视: '黑龙江卫视', BRTV北京卫视: '北京卫视', 内蒙卫视: '内蒙古卫视', 卡酷动画: '卡酷少儿', 卡酷卡通: '卡酷少儿' };
+const NAME_ALIAS = { 黑龙卫视: '黑龙江卫视', BRTV北京卫视: '北京卫视', 内蒙卫视: '内蒙古卫视', 卡酷动画: '卡酷少儿', 卡酷卡通: '卡酷少儿', 福州电视台少儿频道: '福州少儿', 福州电视台少儿: '福州少儿' };
 // iptv-org 英文名的少儿台 → 常用中文名
 const KIDS_EN = [
   [/Golden Eagle Cartoon/i, '金鹰卡通'],
