@@ -3,7 +3,14 @@
 
 import Hls from 'hls.js';
 import { RefreshCw, Search, Tv2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import PageLayout from '@/components/PageLayout';
 
@@ -27,7 +34,7 @@ interface LiveData {
 const LAST_KEY = 'live_last_channel';
 const START_TIMEOUT_MS = 10000; // 线路 10 秒内未开始播放则自动换下一条
 
-export default function LivePage() {
+function LivePageClient() {
   const [data, setData] = useState<LiveData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [group, setGroup] = useState<string>('');
@@ -369,5 +376,13 @@ export default function LivePage() {
         )}
       </div>
     </PageLayout>
+  );
+}
+
+export default function LivePage() {
+  return (
+    <Suspense>
+      <LivePageClient />
+    </Suspense>
   );
 }
