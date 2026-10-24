@@ -1,0 +1,50 @@
+name: Update Live Channels
+
+# 每 6 小时从 GitHub 上的 IPTV 仓库拉取直播源并检测，生成 public/live/channels.json
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - scripts/update-live.js
+      - .github/workflows/update-live.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-live
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch and check live channels
+        run: node scripts/update-live.js
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for f in public/live/channels.json .github/live-report.md; do [ -f "$f" ] && git add "$f"; done
+          if git diff --cached --quiet; then
+            echo "无变化"
+            exit 0
+          fi
+          if git diff --cached --quiet -- public/live/channels.json; then
+            git commit -m "chore: 更新直播源检测报告 [skip ci]"
+          else
+            git commit -m "chore: 自动更新直播频道 $(TZ=Asia/Shanghai date '+%F %H:%M')"
+          fi
+          git pull --rebase origin ${{ github.ref_name }}
+          git push
