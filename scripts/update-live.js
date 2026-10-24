@@ -336,6 +336,13 @@ function normalize(item) {
   if (RELIGION_RE.test(raw) || RELIGION_RE.test(item.tvgName || ''))
     return null;
   if (FOREIGN_RE.test(raw)) return null;
+  // 以语种命名的外语 / 非汉语频道（如「塞尔维亚语」「德语」「长白朝语」）
+  if (
+    /(塞尔维亚|德|法|英|俄|西班牙|西|阿拉伯|阿|葡萄牙|日|韩|朝|朝鲜|哈萨克|维吾尔|维|藏|蒙|柯尔克孜|越南|泰|印尼|意大利)(语|語)/.test(
+      raw
+    )
+  )
+    return null;
   // CGTN 外语台（含拼错的「CGNT」及以台址识别）
   if (
     /^CG(TN|NT)/i.test(raw.replace(/\s/g, '')) ||
