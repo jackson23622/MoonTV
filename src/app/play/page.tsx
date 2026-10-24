@@ -23,6 +23,8 @@ import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { filterM3U8Ads } = require('@/lib/m3u8-adfilter');
 
 // 扩展 HTMLVideoElement 类型以支持 hls 属性
 declare global {
@@ -408,24 +410,16 @@ function PlayPageClient() {
     }
   };
 
-  // 去广告相关函数
+  // 去广告相关函数：整段删除插播切片（见 src/lib/m3u8-adfilter.js）
   function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
-
-    // 按行分割M3U8内容
-    const lines = m3u8Content.split('\n');
-    const filteredLines = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // 只过滤#EXT-X-DISCONTINUITY标识
-      if (!line.includes('#EXT-X-DISCONTINUITY')) {
-        filteredLines.push(line);
-      }
+    const result = filterM3U8Ads(m3u8Content);
+    if (result.removedBlocks > 0) {
+      console.info(
+        `[去广告] 已移除 ${result.removedBlocks} 段插播，共 ${result.removedSeconds}s`
+      );
     }
-
-    return filteredLines.join('\n');
+    return result.content;
   }
 
   class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
