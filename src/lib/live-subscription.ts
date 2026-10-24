@@ -1,4 +1,7 @@
-// 直播订阅：解析 m3u / txt 订阅，并与本站网页已验证线路合并
+// 直播订阅：解析 m3u / txt 订阅，套用频道剔除规则，并与本站网页已验证线路合并
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const rules = require('./channel-rules');
 
 export interface LiveChannel {
   name: string;
@@ -17,13 +20,15 @@ export interface LiveData {
   updatedAt?: string;
   sources?: { name: string; url: string }[];
   groups: LiveGroup[];
+  /** 订阅里网页无法播放（只有 http 线路）而被隐藏的频道数 */
+  hidden?: number;
 }
 
 export const DEFAULT_SUBSCRIPTION = 'https://bde4.dpdns.org/tv/live.m3u';
 export const SUBSCRIPTION_KEY = 'live_subscription_url';
 const MAX_WEB_URLS = 4;
 
-interface RawEntry {
+export interface RawEntry {
   name: string;
   url: string;
   group: string;
@@ -79,6 +84,29 @@ export function parseSubscription(text: string): RawEntry[] {
   return out;
 }
 
+/**
+ * 套用频道剔除规则（src/lib/channel-rules.js）：只保留中文正规电视台，
+ * 并把频道名、分组统一为规则里的标准名称。
+ */
+export function applyChannelRules(entries: RawEntry[]): RawEntry[] {
+  const out: RawEntry[] = [];
+  for (const e of entries) {
+    const n = rules.classifyChannel({
+      name: e.name,
+      group: e.group,
+      url: e.url,
+    });
+    if (n) out.push({ ...e, name: n.name, group: n.group });
+  }
+  return out;
+}
+
+/** 按规则里的分组顺序排列分组名 */
+export function groupOrder(name: string): number {
+  const i = (rules.GROUP_ORDER as string[]).indexOf(name);
+  return i < 0 ? 999 : i;
+}
+
 /** 频道名比较用的 key：去空白、去「频道/台」结尾、统一大小写 */
 export function channelKey(name: string): string {
   return name
@@ -102,26 +130,22 @@ export function buildLiveData(
         verified.set(channelKey(c.name), c);
   }
 
-  const groups = new Map<
-    string,
-    Map<string, { name: string; logo?: string; urls: string[] }>
-  >();
-  for (const e of entries) {
+  type Acc = { name: string; logo?: string; urls: string[] };
+  const groups = new Map<string, Map<string, Acc>>();
+  for (const e of applyChannelRules(entries)) {
     if (!e.name) continue;
     if (!groups.has(e.group)) groups.set(e.group, new Map());
-    const g = groups.get(e.group) as Map<
-      string,
-      { name: string; logo?: string; urls: string[] }
-    >;
+    const g = groups.get(e.group) as Map<string, Acc>;
     const key = channelKey(e.name);
     if (!g.has(key)) g.set(key, { name: e.name, logo: e.logo, urls: [] });
-    const ch = g.get(key) as { name: string; logo?: string; urls: string[] };
+    const ch = g.get(key) as Acc;
     if (!ch.logo && e.logo) ch.logo = e.logo;
     const clean = e.url.split('#')[0];
     if (!ch.urls.includes(clean)) ch.urls.push(clean);
   }
 
   const result: LiveGroup[] = [];
+  let hidden = 0;
   groups.forEach((chans, groupName) => {
     const channels: LiveChannel[] = [];
     chans.forEach((ch, key) => {
@@ -135,7 +159,11 @@ export function buildLiveData(
       const urls = Array.from(
         new Set([...(v?.urls || []), ...https, ...(v ? [] : upgraded)])
       ).slice(0, MAX_WEB_URLS);
-      const tvOnly = !v && https.length === 0;
+      // 网页无法播放的频道不显示（电视订阅里仍保留）
+      if (!v && https.length === 0) {
+        hidden++;
+        return;
+      }
       channels.push({
         name: ch.name,
         logo:
@@ -144,16 +172,49 @@ export function buildLiveData(
         urls,
         hd: v?.hd,
         height: v?.height,
-        tvOnly,
       });
     });
-    // 网页能播的排前面
-    channels.sort((a, b) => Number(!!a.tvOnly) - Number(!!b.tvOnly));
     if (channels.length) result.push({ name: groupName, channels });
   });
+  result.sort((a, b) => groupOrder(a.name) - groupOrder(b.name));
   return {
     groups: result,
     updatedAt: webVerified?.updatedAt,
     sources: webVerified?.sources,
+    hidden,
   };
+}
+
+/**
+ * 生成给电视客户端（OrionTV 等）用的 m3u：已套用剔除规则，每个频道保留第一条线路，
+ * 按标准分组顺序排列。OrionTV 以地址作为频道 id 且不会自动换线，所以每频道只给一条。
+ */
+export function toTvM3u(entries: RawEntry[]): string {
+  const groups = new Map<string, Map<string, RawEntry>>();
+  for (const e of applyChannelRules(entries)) {
+    if (!groups.has(e.group)) groups.set(e.group, new Map());
+    const g = groups.get(e.group) as Map<string, RawEntry>;
+    const key = channelKey(e.name);
+    if (!g.has(key)) g.set(key, e);
+  }
+  const names = Array.from(groups.keys()).sort(
+    (a, b) => groupOrder(a) - groupOrder(b)
+  );
+  const esc = (v?: string) => String(v || '').replace(/"/g, '');
+  const lines = ['#EXTM3U'];
+  for (const name of names) {
+    const list = Array.from(
+      (groups.get(name) as Map<string, RawEntry>).values()
+    );
+    rules.sortChannels(name, list);
+    for (const c of list) {
+      lines.push(
+        `#EXTINF:-1 tvg-name="${esc(c.name)}"${
+          c.logo ? ` tvg-logo="${esc(c.logo)}"` : ''
+        } group-title="${esc(name)}",${c.name}`,
+        c.url
+      );
+    }
+  }
+  return lines.join('\n') + '\n';
 }

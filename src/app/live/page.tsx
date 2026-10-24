@@ -264,14 +264,9 @@ function LivePageClient() {
   }, [data, group, keyword]);
 
   const webPlayable = data
-    ? data.groups.reduce(
-        (a, g) => a + g.channels.filter((c) => !c.tvOnly).length,
-        0
-      )
-    : 0;
-  const totalChannels = data
     ? data.groups.reduce((a, g) => a + g.channels.length, 0)
     : 0;
+  const hiddenChannels = data?.hidden || 0;
   const updatedText = data?.updatedAt
     ? new Date(data.updatedAt).toLocaleString('zh-CN', {
         timeZone: 'Asia/Shanghai',
@@ -347,14 +342,22 @@ function LivePageClient() {
               </div>
             </div>
             <p className='mt-2 text-xs text-gray-500 dark:text-gray-400 leading-5'>
-              当前订阅 {totalChannels} 个频道，网页可播 {webPlayable}{' '}
-              个。电视客户端（OrionTV「设置 → 直播源」）可填同一地址：
+              网页显示 {webPlayable} 个可播放的频道
+              {hiddenChannels > 0 &&
+                `（另有 ${hiddenChannels} 个只有 http 线路，浏览器无法播放，已隐藏，电视上可以看）`}
+              。电视客户端（OrionTV「设置 → 直播源」）可填同一地址：
               <span className='font-mono break-all'>
                 {' '}
                 {DEFAULT_SUBSCRIPTION}
               </span>
-              。只有 http
-              线路的频道浏览器无法播放，标为「电视」，请在电视上观看。
+              。
+              <br />
+              想在电视上用其他订阅，可填
+              <span className='font-mono break-all'>
+                {' '}
+                https://bde4.dpdns.org/tv/filter.m3u?url=订阅地址
+              </span>
+              ，会按同样规则只保留中文正规电视台。
             </p>
           </div>
         )}

@@ -2,6 +2,7 @@ import {
   buildLiveData,
   channelKey,
   parseSubscription,
+  toTvM3u,
 } from './live-subscription';
 
 const M3U = `#EXTM3U
@@ -42,7 +43,7 @@ describe('直播订阅', () => {
     expect(e[2].group).toBe('卫视频道');
   });
 
-  test('合并网页已验证线路；只有 http 的频道标为仅电视', () => {
+  test('合并网页已验证线路；网页无法播放的频道不显示', () => {
     const verified = {
       updatedAt: '2026-10-25T00:00:00Z',
       groups: [
@@ -64,18 +65,57 @@ describe('直播订阅', () => {
     const cctv1 = all.find((c) => c.name === 'CCTV-1');
     expect(cctv1?.urls[0]).toBe('https://ok/cctv1.m3u8');
     expect(cctv1?.hd).toBe(true);
-    expect(cctv1?.tvOnly).toBe(false);
-    const jykt = all.find((c) => c.name === '金鹰卡通');
-    expect(jykt?.tvOnly).toBe(true);
     const tvbs = all.find((c) => c.name === 'TVBS新聞台');
-    expect(tvbs?.tvOnly).toBe(false);
     expect(tvbs?.urls).toEqual(['https://tw.example/tvbs.m3u8']);
-    // 片段 #kids 不影响地址
-    const cctv14 = all.find((c) => c.name === 'CCTV-14');
-    expect(cctv14?.urls.every((u) => !u.includes('#'))).toBe(true);
+    // 只有 http 线路、网页无法播放的频道不显示，只计数
+    expect(all.find((c) => c.name === '金鹰卡通')).toBeUndefined();
+    expect(all.find((c) => c.name === 'CCTV-14')).toBeUndefined();
+    expect(d.hidden).toBe(2);
   });
 
   test('频道名 key', () => {
     expect(channelKey('东森新闻台')).toBe(channelKey('东森新闻'));
+  });
+});
+
+describe('电视订阅清洗（/tv/filter.m3u）', () => {
+  const DIRTY = `#EXTM3U
+#EXTINF:-1 group-title="其他",周星驰电影
+http://a/zxc.m3u8
+#EXTINF:-1 group-title="央视",CCTV1
+http://a/cctv1.m3u8
+#EXTINF:-1 group-title="央视",CCTV-1 综合
+http://b/cctv1.m3u8
+#EXTINF:-1 group-title="国际",CGTN英语
+http://a/cgtn.m3u8
+#EXTINF:-1 group-title="宗教",GOOD TV CH1 綜合台
+http://a/good.m3u8
+#EXTINF:-1 group-title="台湾",TVBS新聞台
+http://a/tvbs.m3u8
+#EXTINF:-1 group-title="动漫",海绵宝宝
+https://live.metshop.top/douyu/1
+#EXTINF:-1 group-title="卫视",湖南卫视
+http://a/hn.m3u8
+`;
+
+  test('只保留正规台，同名频道只留一条，按标准分组排序', () => {
+    const out = toTvM3u(parseSubscription(DIRTY));
+    const names = out.match(/,[^\n]+$/gm)?.map((s) => s.slice(1));
+    expect(names).toEqual(['CCTV-1', '湖南卫视', 'TVBS新聞台']);
+    expect(out).toContain('group-title="央视频道"');
+    expect(out).toContain('http://a/cctv1.m3u8');
+    expect(out).not.toContain('http://b/cctv1.m3u8');
+  });
+
+  test('清洗结果再清洗一次保持不变（规则幂等）', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const path = require('path');
+    const file = path.join(process.cwd(), 'public/tv/live.m3u');
+    const source = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : DIRTY;
+    const once = toTvM3u(parseSubscription(source));
+    const twice = toTvM3u(parseSubscription(once));
+    expect(twice).toBe(once);
   });
 });

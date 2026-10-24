@@ -82,7 +82,7 @@ const {
   toSimp,
   normalize,
   sortChannels,
-} = require('./channel-rules');
+} = require('../src/lib/channel-rules');
 
 // ---------- 可播放性检测 ----------
 
