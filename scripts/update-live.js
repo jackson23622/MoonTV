@@ -85,6 +85,11 @@ const GROUP_ORDER = [
   '其他频道',
 ];
 const HD_HEIGHT = 720;
+// 直播平台（虎牙、斗鱼等）二次解析服务：不稳定，且失效后常被劫持跳转到广告站，一律不收
+const RESTREAM_RE =
+  /\/(huya|douyu|bilibili|youku|iqiyi|yy|kuaishou|douyin)(\/|\.php|\?)|(huya|douyu|bilibili)\.php|live\.iill\.top|live\.metshop\.top|jdshipin\.com/i;
+// 境外无法验证时，只放行直接指向视频流文件的地址（不放行会跳转的脚本地址）
+const DIRECT_STREAM_RE = /\.(m3u8|flv|ts|mp4)(\?|#|$)/i;
 
 // ---------- 解析与归类 ----------
 
@@ -572,7 +577,8 @@ async function main() {
     const original = it.url.trim();
     if (!/^https?:\/\//i.test(original) || /^https?:\/\/\[/.test(original))
       continue;
-    if (/youtube\.com|youtu\.be/i.test(original)) continue;
+    if (/youtube\.com|youtu\.be/i.test(original) || RESTREAM_RE.test(original))
+      continue;
     if (!channels.has(n.key))
       channels.set(n.key, {
         ...n,
@@ -680,7 +686,11 @@ async function main() {
     const meta = r.ch.tvUrls.get(r.url);
     if (r.state === 'ok')
       b.ok.push({ url: r.url, height: r.height || meta.height || 0 });
-    else if (r.state === 'unreachable' && meta.chinaVerified)
+    else if (
+      r.state === 'unreachable' &&
+      meta.chinaVerified &&
+      DIRECT_STREAM_RE.test(new URL(r.url).pathname)
+    )
       b.china.push({ url: r.url, height: meta.height || 0 });
   }
   const tvGroups = new Map();
