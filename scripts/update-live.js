@@ -336,6 +336,12 @@ function normalize(item) {
   if (RELIGION_RE.test(raw) || RELIGION_RE.test(item.tvgName || ''))
     return null;
   if (FOREIGN_RE.test(raw)) return null;
+  // CGTN 外语台（含拼错的「CGNT」及以台址识别）
+  if (
+    /^CG(TN|NT)/i.test(raw.replace(/\s/g, '')) ||
+    /cgtn\.com/i.test(item.url || '')
+  )
+    return null;
 
   const compact = raw.replace(/\s/g, '');
   const cctv = compact.match(/^CCTV-?(\d{1,2}|4K|8K)(\+)?/i);
