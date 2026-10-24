@@ -81,7 +81,6 @@ const GROUP_ORDER = [
   '体育频道',
   '电影频道',
   '纪录频道',
-  '直播中国',
   '其他频道',
 ];
 const HD_HEIGHT = 720;
@@ -205,7 +204,7 @@ const RELIGION_RE =
   /宗教|佛|禪|禅|法界|慈濟|慈济|大愛|大爱|人間衛視|人间卫视|唯心|華藏|华藏|淨空|净空|弘法|生命電視|基督|福音|教會|教会|聖經|圣经|禱告|祷告|真理台|牧者|天主|伊斯兰|回教|道教|天道|靈修|灵修|GOOD ?TV|CGNTV|God ?Stands|Gospel|3ABN|Hope ?Channel|Daystar|Christian|Church|Bible|Buddh|Dharma|Catholic/i;
 // 外语频道
 const FOREIGN_RE =
-  /韩国|韓國|日本|朝鲜|朝鮮|英语|英語|英文|法语|西语|阿语|俄语|EBS|KBS|NHK|Arirang|English|Korea|Japan|Bloomberg|CNN|BBC|Discovery|Cartoon ?Network|Cartoonito|BabyFirst|ZooMoo|KIX|Thrill|Celestial|Beautiful Life|Taiwan ?Plus/i;
+  /韩国|韓國|日本|朝鲜|朝鮮|英语|英語|英文|法语|西语|阿语|俄语|EBS|KBS|NHK|Arirang|English|Korea|Japan|Bloomberg|CNN|BBC|Discovery|Cartoon ?Network|Cartoonito|BabyFirst|ZooMoo|KIX|Thrill|Celestial|Beautiful Life|Taiwan ?Plus|VOA|美国之音|美國之音|RFA|自由亚洲/i;
 // 名字全是英文但属于中文台的常见台标
 const ASCII_CN_OK =
   /^(CCTV|CETV|CHC|TVBS|TVB|HOY|VIUTV|RTHK|NOW|BRTV|BTV|SZTV|STV|CNC|NEWTV|IHOT|SITV|DOX|EBC|FTV|CTS|CTV|PTS|SET|TTV|CTI)/i;
@@ -318,9 +317,38 @@ const CGTN_ALIAS = {
   RUSSIAN: '俄语',
 };
 const HKTW_RE =
-  /TVB|翡翠台|明珠台|无线新闻|無線新聞|凤凰|鳳凰|澳视|澳視|中天|TVBS|三立|台视|台視|中视|中視|华视|華視|民视|民視|东森|東森|寰宇|ViuTV|有线新闻|香港卫视|香港電台|RTHK|港台电视|港台電視|八大|纬来|緯來|公视|公視|原住民/i;
+  /TVB|翡翠台|明珠台|无线新闻|無線新聞|凤凰|鳳凰|澳视|澳視|中天|TVBS|三立|台视|台視|中视|中視|华视|華視|民视|民視|东森|東森|寰宇|ViuTV|有线新闻|香港卫视|香港電台|RTHK|港台电视|港台電視|八大|纬来|緯來|公视|公視|原住民|番薯|美亚|美亞|龙华|龍華|AMC|年代|壹电视|壹電視|非凡|HOY|ViuTV|澳门|澳門/i;
+
+// ---------- 只保留正规电视台 ----------
+// 平台转播、循环台、解说台、测试台
+const NON_STATION_RE =
+  /^(虎牙|斗鱼|B站|咪咕|埋堆堆|快手|抖音|YY|西瓜|爱奇艺|优酷|腾讯)|解说|轮播|輪播|循环|合集|系列|专场|测试|測試|其他$|[\u{1D7D8}-\u{1D7E1}]/u;
+// 正规少儿台
+const KIDS_STATION_RE =
+  /少儿|少兒|儿童|兒童|^(金鹰卡通|卡酷少儿|优漫卡通|嘉佳卡通|炫动卡通|哈哈炫动|CCTV-14)$/;
+// 电视台的命名方式（地方台、专业频道）
+const STATION_RE =
+  /^(CCTV|CETV|CHC)|卫视|衛視|电视台|電視台|新闻|新聞|综合|綜合|公共|都市|经济|經濟|生活|影视|影視|文旅|旅游|教育|科教|农业|農業|农村|乡村|法治|法制|民生|文体|文艺|文化|娱乐|娛樂|财经|財經|纪实|紀實|纪录|紀錄|购物|購物|体育|體育|休闲|资讯|資訊|导视|城市|国际|综艺|戏曲|戲曲|频道|頻道|一套|二套|三套|[0-9一二三四五六七八九]台|台$|电视$/;
+
+function isStation(name, group) {
+  if (NON_STATION_RE.test(name)) return false;
+  if (group === '央视频道' || group === '卫视频道') return true;
+  if (group === '少儿频道') return KIDS_STATION_RE.test(name);
+  if (group === '港澳台') return HKTW_RE.test(name);
+  return STATION_RE.test(name);
+}
 
 function normalize(item) {
+  const n = normalizeRaw(item);
+  if (!n) return null;
+  if (n.group === '直播中国') return null; // 景区镜头，不是电视频道
+  if (!isStation(n.name, n.group)) return null;
+  // CCTV 数字付费频道（风云剧场、兵器科技等）归入央视
+  if (/^CCTV/.test(n.name) && n.group !== '少儿频道') n.group = '央视频道';
+  return n;
+}
+
+function normalizeRaw(item) {
   let raw = (item.name || item.tvgName || '').trim();
   if (!raw) return null;
   if (/❌|✖|失效/.test(raw)) return null;
