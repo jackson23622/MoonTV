@@ -7,6 +7,9 @@
 const GROUP_ORDER = [
   '央视频道',
   '卫视频道',
+  'NewTV',
+  'iHOT',
+  'SiTV',
   '少儿频道',
   '港澳台',
   '地方频道',
@@ -55,6 +58,7 @@ function parseM3U(text, source) {
           url: line,
           source: source.name,
           chinaVerified: !!source.chinaVerified,
+          curated: !!source.curated,
         });
       info = null;
     }
@@ -136,7 +140,7 @@ const RELIGION_RE =
   /宗教|佛|禪|禅|法界|慈濟|慈济|大愛|大爱|人間衛視|人间卫视|唯心|華藏|华藏|淨空|净空|弘法|生命電視|基督|福音|教會|教会|聖經|圣经|禱告|祷告|真理台|牧者|天主|伊斯兰|回教|道教|天道|靈修|灵修|GOOD ?TV|CGNTV|God ?Stands|Gospel|3ABN|Hope ?Channel|Daystar|Christian|Church|Bible|Buddh|Dharma|Catholic/i;
 // 外语频道
 const FOREIGN_RE =
-  /韩国|韓國|日本|朝鲜|朝鮮|英语|英語|英文|法语|西语|阿语|俄语|EBS|KBS|NHK|Arirang|English|Korea|Japan|Bloomberg|CNN|BBC|Discovery|Cartoon ?Network|Cartoonito|BabyFirst|ZooMoo|KIX|Thrill|Celestial|Beautiful Life|Taiwan ?Plus|VOA|美国之音|美國之音|RFA|自由亚洲/i;
+  /韩国|韓國|日本|朝鲜|朝鮮|英语|英語|英文|外语|外語|法语|西语|阿语|俄语|EBS|KBS|NHK|Arirang|English|Korea|Japan|Bloomberg|CNN|BBC|Discovery|Cartoon ?Network|Cartoonito|BabyFirst|ZooMoo|KIX|Thrill|Celestial|Beautiful Life|Taiwan ?Plus|VOA|美国之音|美國之音|RFA|自由亚洲/i;
 // 名字全是英文但属于中文台的常见台标
 const ASCII_CN_OK =
   /^(CCTV|CETV|CHC|TVBS|TVB|HOY|VIUTV|RTHK|NOW|BRTV|BTV|SZTV|STV|CNC|NEWTV|IHOT|SITV|DOX|EBC|FTV|CTS|CTV|PTS|SET|TTV|CTI)/i;
@@ -345,7 +349,35 @@ function isFeatured(name, group) {
   return MAJOR_REGION_RE.test(n) || MAJOR_BRAND_RE.test(n);
 }
 
+// jackson23622/live 的数据：保留全部中文频道，分组沿用该仓库的分组
+function curatedGroup(group) {
+  const g = group || '';
+  if (/央视/.test(g)) return '央视频道';
+  if (/卫视/.test(g)) return '卫视频道';
+  if (/^NewTV$/i.test(g)) return 'NewTV';
+  if (/^iHOT$/i.test(g)) return 'iHOT';
+  if (/^SiTV$/i.test(g)) return 'SiTV';
+  if (/地方|频道$/.test(g)) return '地方频道';
+  return '其他频道';
+}
+function normalizeCurated(item) {
+  const n = normalizeRaw(item); // 统一台名、剔除外语台
+  if (!n) return null;
+  const cetv = n.name.match(/^CETV-?(\d)/i);
+  if (cetv) {
+    n.name = `中国教育${cetv[1]}台`;
+    n.key = toSimp(n.name)
+      .toUpperCase()
+      .replace(/(频道|台)$/, '');
+    n.group = '卫视频道';
+    return n;
+  }
+  n.group = /^CCTV/.test(n.name) ? '央视频道' : curatedGroup(item.group);
+  return n;
+}
+
 function normalize(item) {
+  if (item.curated) return normalizeCurated(item);
   const n = normalizeRaw(item);
   if (!n) return null;
   if (n.group === '直播中国') return null; // 景区镜头，不是电视频道
@@ -379,6 +411,11 @@ function normalizeRaw(item) {
     return null;
   if (/春晚/.test(item.group) || /春晚/.test(raw)) return null;
   raw = raw.replace(/^[^\p{L}\p{N}]+/u, '');
+  // 帧率 / 编码标注（「CCTV2 50 FPS」「安徽卫视 50 FPS」）是同一频道，先去掉，避免台号被读成 25
+  raw = raw
+    .replace(/\s*\d{2,3}\s*FPS\b/gi, '')
+    .replace(/\s*(HEVC|H\.?26[45])\b/gi, '')
+    .trim();
   // 「CTi Variety (中天綜合台)」这类英文名带中文括注：用中文名
   const zhInParen = raw.match(
     /[（(]([^()（）]*[\u4e00-\u9fff][^()（）]*)[)）]/

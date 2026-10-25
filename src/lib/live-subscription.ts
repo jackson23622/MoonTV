@@ -34,13 +34,9 @@ export interface LiveData {
 export const DEFAULT_SUBSCRIPTION = '';
 /** 本站电视订阅（OrionTV 等电视客户端填这个） */
 export const SITE_SUBSCRIPTION = 'https://bde4.dpdns.org/tv/live.m3u';
-/** fanmingming/live 的 IPv6 列表（需家宽 IPv6，多数线路网页无法播放） */
-export const FANMINGMING_SUBSCRIPTION =
-  'https://raw.githubusercontent.com/fanmingming/live/refs/heads/main/tv/m3u/ipv6.m3u';
 /** 订阅预设（网页一键切换） */
 export const SUBSCRIPTION_PRESETS = [
-  { name: '本站精选（推荐）', url: DEFAULT_SUBSCRIPTION },
-  { name: 'fanmingming IPv6', url: FANMINGMING_SUBSCRIPTION },
+  { name: '本站频道（jackson23622/live）', url: DEFAULT_SUBSCRIPTION },
 ];
 export const SUBSCRIPTION_KEY = 'live_subscription_url';
 const MAX_WEB_URLS = 6;

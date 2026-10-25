@@ -8,11 +8,9 @@ const path = require('path');
 const { matchKey, matchCandidates } = require('../src/lib/channel-rules');
 
 // 你自己的 fork 优先（定时同步、不受上游停更影响），上游镜像兜底
-const LOGO_REPOS = ['jackson23622/live', 'fanmingming/live'];
+const LOGO_REPOS = ['jackson23622/live'];
 const EPG_URLS = [
   'https://raw.githubusercontent.com/jackson23622/live/main/e.xml',
-  'https://live.fanmingming.cn/e.xml',
-  'https://raw.githubusercontent.com/fanmingming/live/main/e.xml',
 ];
 const EPG_BEFORE_SEC = 6 * 3600; // 保留 6 小时前开始的节目（正在播的长节目）
 const EPG_AFTER_SEC = 48 * 3600; // 保留未来 48 小时（检测每 6 小时一次，留足余量）

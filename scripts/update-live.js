@@ -17,80 +17,25 @@ const TV_TXT_PATH = path.join(ROOT, 'public', 'tv', 'live.txt');
 const DRY_RUN = process.argv.includes('--dry-run');
 
 const SITE_ORIGIN = 'https://bde4.dpdns.org';
-const SOURCES = [
-  {
-    name: 'vbskycn/iptv',
-    chinaVerified: true,
-    url: 'https://raw.githubusercontent.com/vbskycn/iptv/refs/heads/master/tv/iptv4.m3u',
-  },
-  {
-    name: 'zhi35/iptv',
-    chinaVerified: true,
-    url: 'https://raw.githubusercontent.com/zhi35/iptv/master/iptv.m3u',
-  },
-  {
-    name: 'iptv-org/iptv (cn)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/cn.m3u',
-  },
-  {
-    name: 'iptv-org/iptv (hk)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/hk.m3u',
-    group: '港澳台',
-  },
-  {
-    name: 'iptv-org/iptv (tw)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/tw.m3u',
-    group: '港澳台',
-  },
-  {
-    name: 'best-fan/iptv-sources',
-    chinaVerified: true,
-    url: 'https://raw.githubusercontent.com/best-fan/iptv-sources/main/cn_all_status.m3u8',
-  },
-  // 每日检测可用性，含台湾新闻台（TVBS、東森、三立、中天、民视等）
-  {
-    name: 'big-mouth-cn/tv',
-    chinaVerified: true,
-    url: 'https://raw.githubusercontent.com/big-mouth-cn/tv/main/iptv-ok.m3u',
-  },
-  // 网页默认订阅：fanmingming/live（其中 https 线路参与检测，IPv6 线路自动跳过）
-  {
-    name: 'fanmingming/live',
-    chinaVerified: true,
-    url: 'https://raw.githubusercontent.com/fanmingming/live/refs/heads/main/tv/m3u/ipv6.m3u',
-  },
-  // 中文频道全集（含台湾、香港、新加坡等地中文台）
-  {
-    name: 'iptv-org/iptv (中文)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/languages/zho.m3u',
-  },
-  // 少儿分类：只收中文频道（tvg-id 为中/港/台/澳/新 或名称含中文）
-  {
-    name: 'iptv-org/iptv (少儿)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/gh-pages/categories/kids.m3u',
-    group: '少儿频道',
-    chineseOnly: true,
-  },
-];
+const LIVE_REPO =
+  'https://raw.githubusercontent.com/jackson23622/live/main/tv/m3u/';
+// 频道只取 jackson23622/live（demo.m3u 为空模板、Invalid/ 为已失效源，不收）
+const SOURCES = ['index', 'itv', 'ipv6'].map((f) => ({
+  name: `jackson23622/live (${f}.m3u)`,
+  url: LIVE_REPO + f + '.m3u',
+  chinaVerified: true,
+  curated: true,
+}));
 
 const TIMEOUT_MS = 8000;
 const CONCURRENCY = 24;
 const MAX_URLS_PER_CHANNEL = 6;
 const MAX_CN_URLS = 3; // 每频道最多带 3 条「境外测不通、国内直连可看」的线路
 // 允许收录「只有国内线路」的分组：港澳台的国内线路基本不可用，其余都收（主要在国内直连观看）
-const CN_ONLY_GROUPS = [
-  '央视频道',
-  '卫视频道',
-  '少儿频道',
-  '地方频道',
-  '体育频道',
-  '电影频道',
-  '纪录频道',
-  '其他频道',
-];
+const CN_ONLY_EXCLUDE = ['港澳台']; // 港澳台的国内线路基本不可用
 const EPG_PATH = path.join(ROOT, 'public', 'live', 'epg.json');
 const LOGO_DIR = path.join(ROOT, 'public', 'tv', 'logos');
-const MIN_CHANNELS = 30; // 低于此数视为检测环境异常，保留上一版数据
+const MIN_CHANNELS = 5; // 低于此数视为检测环境异常，保留上一版数据
 const TV_CONCURRENCY = 32;
 
 const {
@@ -366,8 +311,9 @@ async function main() {
     const n = normalize(it);
     if (!n) continue;
     const original = it.url.trim().replace(/#.*$/, '');
-    if (!/^https?:\/\//i.test(original) || /^https?:\/\/\[/.test(original))
-      continue;
+    if (!/^https?:\/\//i.test(original)) continue;
+    // IPv6 字面地址：网页与边缘代理都无法使用，只放进电视订阅（家宽开 IPv6 的电视可看）
+    const ipv6Only = /^https?:\/\/\[/.test(original);
     if (/youtube\.com|youtu\.be/i.test(original) || RESTREAM_RE.test(original))
       continue;
     // 台名与地址矛盾（标着 CCTV-1、地址是 cctv5）或占位画面：不收
@@ -403,6 +349,7 @@ async function main() {
     const meta = ch.tvUrls.get(original);
     meta.chinaVerified = meta.chinaVerified || it.chinaVerified;
     meta.sources.add(it.source);
+    if (ipv6Only) continue;
     // 网页：https（http 尝试升级）
     const url = original.startsWith('http://')
       ? 'https://' + original.slice(7)
@@ -530,7 +477,7 @@ async function main() {
     const cnOnly = !verified.length;
     if (cnOnly) {
       // 只有国内线路：港澳台不收，且至少一条来自国内检测过的仓库
-      if (!CN_ONLY_GROUPS.includes(ch.group) || !b.china.some((x) => x.trusted))
+      if (CN_ONLY_EXCLUDE.includes(ch.group) || !b.china.some((x) => x.trusted))
         continue;
       stat.cn++;
     } else if (verified[0].kind === 'd') stat.direct++;
@@ -597,9 +544,7 @@ async function main() {
     if (!b) continue;
     b.ok.sort((x, y) => y.height - x.height);
     // 只有央视、卫视允许使用境外无法验证的国内线路兜底；其余频道必须验证能播才收录，保证流畅
-    const pick =
-      b.ok[0] ||
-      (['央视频道', '卫视频道'].includes(ch.group) ? b.china[0] : null);
+    const pick = b.ok[0] || b.china[0];
     if (!pick) continue;
     if (b.ok[0]) tvVerified++;
     if (!tvGroups.has(ch.group)) tvGroups.set(ch.group, []);

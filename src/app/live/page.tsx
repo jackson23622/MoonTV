@@ -436,7 +436,7 @@ function LivePageClient() {
                 onKeyDown={(e) =>
                   e.key === 'Enter' && saveSubscription(subInput)
                 }
-                placeholder='自定义 m3u / txt 订阅地址（留空 = 本站精选）'
+                placeholder='自定义 m3u / txt 订阅地址（留空 = 本站频道）'
                 className='flex-1 h-10 rounded-lg bg-white py-2 px-3 text-sm text-gray-700 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-green-400 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700'
               />
               <div className='flex gap-2'>
@@ -449,7 +449,7 @@ function LivePageClient() {
                 </button>
                 <button
                   onClick={() => saveSubscription(DEFAULT_SUBSCRIPTION)}
-                  title='恢复本站精选'
+                  title='恢复本站频道'
                   className='h-10 px-3 rounded-lg bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:text-gray-200 text-sm flex items-center gap-1'
                 >
                   <RotateCcw className='h-4 w-4' />
@@ -726,9 +726,7 @@ function LivePageClient() {
                 <p className='mt-3 text-xs text-gray-400 dark:text-gray-500'>
                   {subUrl
                     ? `当前订阅：${subUrl}`
-                    : `频道来自 GitHub：${(data.sources || [])
-                        .map((x) => x.name)
-                        .join('、')}；台标与节目单来自 fanmingming/live。`}
+                    : '频道、台标与节目单均来自 jackson23622/live，每 6 小时检测更新。'}
                 </p>
               )}
             </div>
