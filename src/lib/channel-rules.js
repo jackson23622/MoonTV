@@ -270,6 +270,27 @@ function isStation(name, group) {
   return STATION_RE.test(name);
 }
 
+// ---------- 精选：地方台只留省级台和大城市台 ----------
+// 完整保留的分组（央视、卫视、少儿、港澳台）
+const CORE_GROUPS = ['央视频道', '卫视频道', '少儿频道', '港澳台'];
+// 省级行政区 + 省会 / 计划单列市 / 一线城市
+const MAJOR_REGION_RE =
+  /^(北京|天津|上海|重庆|河北|山西|内蒙古|辽宁|吉林|黑龙江|江苏|浙江|安徽|福建|江西|山东|河南|湖北|湖南|广东|广西|海南|四川|贵州|云南|西藏|陕西|甘肃|青海|宁夏|新疆|广州|深圳|杭州|南京|苏州|武汉|成都|西安|厦门|青岛|宁波|大连|长沙|郑州|济南|哈尔滨|长春|沈阳|福州|昆明|南宁|合肥|南昌|石家庄|太原|兰州|西宁|银川|乌鲁木齐|呼和浩特|贵阳|海口|拉萨|东莞|佛山)/;
+// 省级台的品牌名（不带地名开头）
+const MAJOR_BRAND_RE =
+  /^(中国蓝|第一财经|东方|五星体育|南国都市|4K南国都市|之江纪录|CHC|CETV|梨园|BRTV|SITV|纪实人文)/;
+// 购物、导视、党建等不适合观看的频道
+const LOW_VALUE_RE = /购物|購物|导视|導視|党建|黨建|图文|圖文|置业|测试/;
+
+function isFeatured(name, group) {
+  if (CORE_GROUPS.includes(group)) return true;
+  if (LOW_VALUE_RE.test(name)) return false;
+  const n = toSimp(name).replace(/\s/g, '');
+  // 「吉林市…」「广东Ⅰ韶关…」「杭州余杭…」这类是地级市 / 区县台
+  if (/^吉林市|Ⅰ|Ⅱ|^杭州(余杭|萧山|临平)/.test(n)) return false;
+  return MAJOR_REGION_RE.test(n) || MAJOR_BRAND_RE.test(n);
+}
+
 function normalize(item) {
   const n = normalizeRaw(item);
   if (!n) return null;
@@ -277,6 +298,18 @@ function normalize(item) {
   if (!isStation(n.name, n.group)) return null;
   // CCTV 数字付费频道（风云剧场、兵器科技等）归入央视
   if (/^CCTV/.test(n.name) && n.group !== '少儿频道') n.group = '央视频道';
+  if (!isFeatured(n.name, n.group)) return null;
+  // 合并同一频道的不同写法：「广州电视台新闻」=「广州新闻」，「之江纪录」=「浙江之江纪录」
+  const merged = n.name
+    .replace(/^(广州|深圳|杭州|南京|苏州|武汉|成都|哈尔滨|长春)电视台/, '$1')
+    .replace(/^之江纪录$/, '浙江之江纪录');
+  if (merged !== n.name) {
+    n.name = merged;
+    n.key = toSimp(merged)
+      .replace(/[\s\-_·]/g, '')
+      .toUpperCase()
+      .replace(/(频道|台)$/, '');
+  }
   return n;
 }
 
@@ -412,6 +445,8 @@ function classifyChannel(item) {
 }
 
 module.exports = {
+  CORE_GROUPS,
+  isFeatured,
   GROUP_ORDER,
   HD_HEIGHT,
   RESTREAM_RE,

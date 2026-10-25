@@ -50,6 +50,29 @@ describe('频道剔除规则', () => {
     ).toBeNull();
   });
 
+  test('地方台只留省级台和大城市台', () => {
+    expect(c('浙江新闻')?.group).toBe('地方频道');
+    expect(c('苏州新闻综合')?.group).toBe('地方频道');
+    expect(c('北京纪实')).not.toBeNull();
+    expect(c('中国蓝新闻')).not.toBeNull();
+    for (const n of [
+      '苍南新闻综合',
+      '嵊州综合',
+      '吉林市新闻综合',
+      '广东 Ⅰ 韶关综合台',
+      '杭州余杭综合',
+      '西安乐购购物',
+      '安徽导视',
+      '句容党建',
+    ])
+      expect(c(n)).toBeNull();
+  });
+
+  test('同一频道不同写法合并', () => {
+    expect(c('广州电视台新闻')?.key).toBe(c('广州新闻')?.key);
+    expect(c('之江纪录')?.name).toBe('浙江之江纪录');
+  });
+
   test('英文名映射为中文名', () => {
     expect(c('EBC News (東森新聞台) (1080p)')?.name).toBe('東森新聞台');
     expect(c('Golden Eagle Cartoon (576p)')?.name).toBe('金鹰卡通');

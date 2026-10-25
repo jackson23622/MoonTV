@@ -368,7 +368,10 @@ async function main() {
     const b = tvBy.get(ch.key);
     if (!b) continue;
     b.ok.sort((x, y) => y.height - x.height);
-    const pick = b.ok[0] || b.china[0];
+    // 只有央视、卫视允许使用境外无法验证的国内线路兜底；其余频道必须验证能播才收录，保证流畅
+    const pick =
+      b.ok[0] ||
+      (['央视频道', '卫视频道'].includes(ch.group) ? b.china[0] : null);
     if (!pick) continue;
     if (b.ok[0]) tvVerified++;
     if (!tvGroups.has(ch.group)) tvGroups.set(ch.group, []);
