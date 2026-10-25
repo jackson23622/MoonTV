@@ -14,7 +14,7 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { SearchResult } from '@/lib/types';
-import { processImageUrl } from '@/lib/utils';
+import { getImageFallbackUrl, processImageUrl } from '@/lib/utils';
 
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 
@@ -98,6 +98,12 @@ export default function VideoCard({
 
   const actualTitle = aggregateData?.first.title ?? title;
   const actualPoster = aggregateData?.first.poster ?? poster;
+  const [posterSrc, setPosterSrc] = useState(() =>
+    processImageUrl(actualPoster)
+  );
+  useEffect(() => {
+    setPosterSrc(processImageUrl(actualPoster));
+  }, [actualPoster]);
   const actualSource = aggregateData?.first.source ?? source;
   const actualId = aggregateData?.first.id ?? id;
   const actualDoubanId = String(
@@ -278,12 +284,16 @@ export default function VideoCard({
         {!isLoading && <ImagePlaceholder aspectRatio='aspect-[2/3]' />}
         {/* 图片 */}
         <Image
-          src={processImageUrl(actualPoster)}
+          src={posterSrc}
           alt={actualTitle}
           fill
           className='object-cover'
           referrerPolicy='no-referrer'
           onLoadingComplete={() => setIsLoading(true)}
+          onError={() => {
+            const next = getImageFallbackUrl(actualPoster, posterSrc);
+            if (next) setPosterSrc(next);
+          }}
         />
 
         {/* 悬浮遮罩 */}

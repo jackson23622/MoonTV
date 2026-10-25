@@ -19,7 +19,11 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 import { SearchResult } from '@/lib/types';
-import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
+import {
+  getImageFallbackUrl,
+  getVideoResolutionFromM3u8,
+  processImageUrl,
+} from '@/lib/utils';
 
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
@@ -1070,7 +1074,7 @@ function PlayPageClient() {
       artPlayerRef.current.title = `${videoTitle} - 第${
         currentEpisodeIndex + 1
       }集`;
-      artPlayerRef.current.poster = videoCover;
+      artPlayerRef.current.poster = processImageUrl(videoCover);
       if (artPlayerRef.current?.video) {
         ensureVideoSource(
           artPlayerRef.current.video as HTMLVideoElement,
@@ -1098,7 +1102,7 @@ function PlayPageClient() {
       artPlayerRef.current = new Artplayer({
         container: artRef.current,
         url: videoUrl,
-        poster: videoCover,
+        poster: processImageUrl(videoCover),
         volume: 0.7,
         isLive: false,
         muted: false,
@@ -1685,6 +1689,12 @@ function PlayPageClient() {
                     src={processImageUrl(videoCover)}
                     alt={videoTitle}
                     className='w-full h-full object-cover'
+                    referrerPolicy='no-referrer'
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      const next = getImageFallbackUrl(videoCover, target.src);
+                      if (next) target.src = next;
+                    }}
                   />
                 ) : (
                   <span className='text-gray-600 dark:text-gray-400'>

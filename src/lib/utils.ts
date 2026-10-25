@@ -35,9 +35,50 @@ export function processImageUrl(originalUrl: string): string {
   if (!originalUrl) return originalUrl;
 
   const proxyUrl = getImageProxyUrl();
-  if (!proxyUrl) return originalUrl;
+  if (proxyUrl) return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
 
-  return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
+  // 未配置外部代理时：必然加载失败的图片直接走本站内置代理
+  // - http:// 图片在 https 页面上会被浏览器按混合内容拦截
+  // - 豆瓣图床会拒绝外站引用
+  if (needsBuiltinImageProxy(originalUrl)) {
+    return getBuiltinImageProxyUrl(originalUrl);
+  }
+  return originalUrl;
+}
+
+const BUILTIN_IMAGE_PROXY = '/api/image-proxy?url=';
+
+function needsBuiltinImageProxy(url: string): boolean {
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    if (/^http:\/\//i.test(url)) return true;
+  }
+  return /(^|\.)doubanio\.com$/i.test(safeHost(url));
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+export function getBuiltinImageProxyUrl(originalUrl: string): string {
+  return `${BUILTIN_IMAGE_PROXY}${encodeURIComponent(originalUrl)}`;
+}
+
+/**
+ * 图片加载失败时的兜底地址：直连失败则改走本站内置代理；
+ * 已经是代理地址（或无法代理）时返回 null，由调用方显示占位。
+ */
+export function getImageFallbackUrl(
+  originalUrl: string,
+  currentSrc: string
+): string | null {
+  if (!originalUrl || !/^https?:\/\//i.test(originalUrl)) return null;
+  if (currentSrc.includes(BUILTIN_IMAGE_PROXY.split('?')[0])) return null;
+  return getBuiltinImageProxyUrl(originalUrl);
 }
 
 /**
