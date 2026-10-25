@@ -68,6 +68,25 @@ describe('filterM3U8Ads', () => {
     expect((r.content.match(/\.ts/g) || []).length).toBe(80);
   });
 
+  test('不补零的顺序编号文件名不会误删正片短分段', () => {
+    const nums = (a, b) =>
+      Array.from(
+        { length: b - a },
+        (_, i) => `#EXTINF:4.000000,\n/v/a/${a + i}.ts`
+      ).join('\n');
+    const m3u8 =
+      HEAD +
+      nums(1, 9) +
+      '\n#EXT-X-DISCONTINUITY\n' +
+      nums(9, 12) +
+      '\n#EXT-X-DISCONTINUITY\n' +
+      nums(12, 400) +
+      '\n#EXT-X-ENDLIST\n';
+    const r = filterM3U8Ads(m3u8);
+    expect(r.removedBlocks).toBe(0);
+    expect((r.content.match(/\.ts/g) || []).length).toBe(399);
+  });
+
   test('主播放列表不处理', () => {
     const master =
       '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1000000\n1000k/hls/index.m3u8\n';

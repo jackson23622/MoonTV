@@ -299,7 +299,44 @@ function PlayPageClient() {
       );
     });
 
-    return resultsWithScore[0].source;
+    // 画质过滤：测速失败（失效/超时）的源不再展示；只保留 1080p 及以上
+    // （读不到分辨率的"未知"视为通过，避免 Safari 等环境全部被误删）。
+    // 若没有任何 1080p+ 的源，则退回到全部可用源，保证仍能播放。
+    const isHd = (q: string) =>
+      q === '4K' || q === '2K' || q === '1080p' || q === '未知';
+    const hdResults = resultsWithScore.filter((r) =>
+      isHd(r.testResult.quality)
+    );
+    const pool = hdResults.length > 0 ? hdResults : resultsWithScore;
+    const aliveKeys = new Set(
+      pool.map((r) => `${r.source.source}-${r.source.id}`)
+    );
+    setAvailableSources((prev) =>
+      prev.filter((s) => aliveKeys.has(`${s.source}-${s.id}`))
+    );
+    if (hdResults.length === 0) {
+      console.warn('没有 1080p 及以上的播放源，已回退到全部可用源');
+    }
+
+    // 4K/2K 优先：只要其加载速度不低于池内最快源的 40%（或速度未知），
+    // 就优先于 1080p；否则按综合评分。
+    const speedKBps = (s: string) => {
+      const m = s.match(/^([\d.]+)\s*(KB\/s|MB\/s)$/);
+      return m ? parseFloat(m[1]) * (m[2] === 'MB/s' ? 1024 : 1) : 0;
+    };
+    const poolMaxSpeed = Math.max(
+      ...pool.map((r) => speedKBps(r.testResult.loadSpeed)),
+      0
+    );
+    const uhd = pool.find((r) => {
+      if (r.testResult.quality !== '4K' && r.testResult.quality !== '2K') {
+        return false;
+      }
+      const sp = speedKBps(r.testResult.loadSpeed);
+      return sp === 0 || sp >= poolMaxSpeed * 0.4;
+    });
+
+    return (uhd ?? pool[0]).source;
   };
 
   // 计算播放源综合评分

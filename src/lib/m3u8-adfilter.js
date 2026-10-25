@@ -15,7 +15,10 @@ function segmentFingerprint(uri) {
   const dot = file.lastIndexOf('.');
   const ext = dot >= 0 ? file.slice(dot + 1).toLowerCase() : '';
   const base = dot >= 0 ? file.slice(0, dot) : file;
-  return dir + '|' + ext + '|' + base.length;
+  // 纯数字文件名（1.ts、10.ts、100.ts 这类顺序编号）长度会随编号变化，
+  // 不能用长度区分，否则正片的短分段会被误判为广告
+  const shape = /^\d+$/.test(base) ? 'n' : String(base.length);
+  return dir + '|' + ext + '|' + shape;
 }
 
 function parseBlocks(lines) {
