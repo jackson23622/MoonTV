@@ -68,7 +68,7 @@ describe('台标与节目单匹配', () => {
 });
 
 describe('网页线路排序', () => {
-  test('直连 > 代理（标准端口优先）> 国内 > H.265；同一地址只留一条', () => {
+  test('直连 > 国内 > 代理（标准端口优先）> H.265；同一地址只留一条', () => {
     const r = rankWebLines({
       direct: [
         { url: 'https://a/720.m3u8', height: 720, direct: true },
@@ -87,13 +87,13 @@ describe('网页线路排序', () => {
       ],
       china: [{ url: 'https://cn/z.m3u8' }],
     });
-    expect(r.map((x) => x.kind).join('')).toBe('ddppcd');
+    expect(r.map((x) => x.kind).join('')).toBe('ddcppd');
     expect(r.map((x) => x.url)).toEqual([
       'https://a/1080.m3u8',
       'https://a/720.m3u8',
+      'https://cn/z.m3u8',
       toProxyUrl('http://c/y.m3u8'),
       toProxyUrl('http://b:9901/x.m3u8'),
-      'https://cn/z.m3u8',
       'https://a/hevc.m3u8',
     ]);
   });

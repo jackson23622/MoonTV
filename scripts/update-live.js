@@ -76,9 +76,18 @@ const SOURCES = [
 const TIMEOUT_MS = 8000;
 const CONCURRENCY = 24;
 const MAX_URLS_PER_CHANNEL = 6;
-const MAX_CN_URLS = 2; // 每频道最多带 2 条「境外测不通、国内可能能看」的线路，避免境外观看时逐条超时
-// 只有这些分组允许收录「只有国内线路」的频道（这几类国内线路最多、最常被境外检测误杀）
-const CN_ONLY_GROUPS = ['央视频道', '卫视频道', '少儿频道'];
+const MAX_CN_URLS = 3; // 每频道最多带 3 条「境外测不通、国内直连可看」的线路
+// 允许收录「只有国内线路」的分组：港澳台的国内线路基本不可用，其余都收（主要在国内直连观看）
+const CN_ONLY_GROUPS = [
+  '央视频道',
+  '卫视频道',
+  '少儿频道',
+  '地方频道',
+  '体育频道',
+  '电影频道',
+  '纪录频道',
+  '其他频道',
+];
 const EPG_PATH = path.join(ROOT, 'public', 'live', 'epg.json');
 const LOGO_DIR = path.join(ROOT, 'public', 'tv', 'logos');
 const MIN_CHANNELS = 30; // 低于此数视为检测环境异常，保留上一版数据
@@ -123,9 +132,10 @@ function standardPort(url) {
 
 /**
  * 给一个频道排好网页线路（纯函数，便于测试）：
- *   d 直连：https + 跨域，境外已验证 —— 不经本站，最快
- *   p 代理：境外已验证但是 http 或不允许跨域 —— 经本站边缘函数转发
- *   c 国内：境外连不上的 https 直链（多为仅限国内 IP）—— 在国内的浏览器里直连
+ *   d 直连：https + 跨域，境外已验证 —— 不经本站，国内外都能直连
+ *   c 国内：境外连不上的 https 直链（多为仅限国内 IP）—— 国内直连观看时通常最快
+ *   p 代理：境外已验证但是 http 或不允许跨域 —— 经本站边缘函数转发，国内访问绕境外最慢，作兜底
+ * 以国内直连观看为主，所以顺序是 直连 → 国内 → 代理。
  * H.265 线路多数浏览器黑屏，排最后；同类按清晰度从高到低。
  */
 function rankWebLines({ direct = [], proxy = [], china = [] }) {
@@ -152,8 +162,8 @@ function rankWebLines({ direct = [], proxy = [], china = [] }) {
     out.push({ ...x, kind, url: kind === 'p' ? toProxyUrl(x.url) : x.url });
   };
   d.forEach((x) => add(x, 'd'));
-  p.forEach((x) => add(x, 'p'));
   c.forEach((x) => add(x, 'c'));
+  p.forEach((x) => add(x, 'p'));
   hevc.forEach((x) => add(x, x.direct ? 'd' : 'p'));
   return out.slice(0, MAX_URLS_PER_CHANNEL);
 }
@@ -407,7 +417,7 @@ async function main() {
     const verified = ranked.filter((x) => x.kind !== 'c');
     const cnOnly = !verified.length;
     if (cnOnly) {
-      // 只有国内线路：只收央视、卫视、少儿，且至少一条来自国内检测过的仓库
+      // 只有国内线路：港澳台不收，且至少一条来自国内检测过的仓库
       if (!CN_ONLY_GROUPS.includes(ch.group) || !b.china.some((x) => x.trusted))
         continue;
       stat.cn++;

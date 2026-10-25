@@ -471,9 +471,9 @@ function LivePageClient() {
             </div>
             <p className='mt-2 text-xs text-gray-500 dark:text-gray-400 leading-5'>
               本站精选每 6 小时从多个 IPTV
-              仓库检测更新，每个频道多条线路自动切换：
-              「直连」浏览器直接播放；「代理」http 或不允许跨域的线路经本站
-              Cloudflare 转发；「国内」境外检测不到、在国内网络可直连的线路。
+              仓库检测更新，每个频道多条线路按顺序自动切换：
+              「直连」浏览器直接播放；「国内」国内网络直连的线路；「代理」http
+              或不允许跨域的线路经本站 Cloudflare 转发（最慢，作兜底）。
               每个频道会记住上次能播的线路。
               {hiddenChannels > 0 &&
                 ` 当前订阅另有 ${hiddenChannels} 个频道只有 IP 地址 / IPv6 线路，网页无法播放，已隐藏。`}
