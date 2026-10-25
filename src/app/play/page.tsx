@@ -18,15 +18,11 @@ import {
   savePlayRecord,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
-import { posterCandidates } from '@/lib/poster';
 import { SearchResult } from '@/lib/types';
-import { getVideoResolutionFromM3u8 } from '@/lib/utils';
+import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
 import EpisodeSelector from '@/components/EpisodeSelector';
 import PageLayout from '@/components/PageLayout';
-import PosterImage from '@/components/PosterImage';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const { filterM3U8Ads } = require('@/lib/m3u8-adfilter');
 
 // 扩展 HTMLVideoElement 类型以支持 hls 属性
 declare global {
@@ -412,16 +408,24 @@ function PlayPageClient() {
     }
   };
 
-  // 去广告相关函数：整段删除插播切片（见 src/lib/m3u8-adfilter.js）
+  // 去广告相关函数
   function filterAdsFromM3U8(m3u8Content: string): string {
     if (!m3u8Content) return '';
-    const result = filterM3U8Ads(m3u8Content);
-    if (result.removedBlocks > 0) {
-      console.info(
-        `[去广告] 已移除 ${result.removedBlocks} 段插播，共 ${result.removedSeconds}s`
-      );
+
+    // 按行分割M3U8内容
+    const lines = m3u8Content.split('\n');
+    const filteredLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // 只过滤#EXT-X-DISCONTINUITY标识
+      if (!line.includes('#EXT-X-DISCONTINUITY')) {
+        filteredLines.push(line);
+      }
     }
-    return result.content;
+
+    return filteredLines.join('\n');
   }
 
   class CustomHlsJsLoader extends Hls.DefaultConfig.loader {
@@ -1062,7 +1066,7 @@ function PlayPageClient() {
       artPlayerRef.current = new Artplayer({
         container: artRef.current,
         url: videoUrl,
-        poster: posterCandidates(videoCover, 'large')[0] || '',
+        poster: videoCover,
         volume: 0.7,
         isLive: false,
         muted: false,
@@ -1645,11 +1649,9 @@ function PlayPageClient() {
             <div className='pl-0 py-4 pr-6'>
               <div className='bg-gray-300 dark:bg-gray-700 aspect-[2/3] flex items-center justify-center rounded-xl overflow-hidden'>
                 {videoCover ? (
-                  <PosterImage
-                    src={videoCover}
+                  <img
+                    src={processImageUrl(videoCover)}
                     alt={videoTitle}
-                    size='large'
-                    loading='eager'
                     className='w-full h-full object-cover'
                   />
                 ) : (
