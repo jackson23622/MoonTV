@@ -243,7 +243,7 @@ function matchKey(name) {
   let s = toSimp(String(name || ''))
     .replace(/\s+/g, '')
     .toUpperCase();
-  const cctv = s.match(/^CCTV-?(\d{1,2}|4K|8K)(\+)?/);
+  const cctv = s.match(/^CCTV-?(4K|8K|\d{1,2})(\+)?/);
   if (cctv) return 'CCTV' + cctv[1] + (cctv[2] || '');
   const cetv = s.match(/^(?:CETV|\u4e2d\u56fd\u6559\u80b2)-?(\d)(?:\u53f0)?/);
   if (cetv) return 'CETV' + cetv[1];
@@ -403,7 +403,7 @@ function normalizeRaw(item) {
     return null;
 
   const compact = raw.replace(/\s/g, '');
-  const cctv = compact.match(/^CCTV-?(\d{1,2}|4K|8K)(\+)?/i);
+  const cctv = compact.match(/^CCTV-?(4K|8K|\d{1,2})(\+)?/i);
   if (cctv) {
     const num = cctv[1].toUpperCase() + (cctv[2] ? '+' : '');
     return { key: 'CCTV-' + num, name: 'CCTV-' + num, group: '央视频道' };

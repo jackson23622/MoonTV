@@ -104,8 +104,25 @@ const {
   normalize,
   sortChannels,
   toProxyUrl,
+  matchKey,
 } = require('../src/lib/channel-rules');
 const { syncLogos, buildEpg } = require('./live-assets');
+const {
+  identityConflict,
+  identityConfirms,
+  isPlaceholderUrl,
+  streamKey,
+} = require('../src/lib/stream-identity');
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** 媒体列表的「进度」：媒体序号 + 最后一个分片地址，直播会不断前进 */
+function playlistProgress(body) {
+  const seq = (body.match(/#EXT-X-MEDIA-SEQUENCE:\s*(\d+)/) || [])[1] || '';
+  const segs = body
+    .split(/\r?\n/)
+    .filter((l) => l.trim() && !l.startsWith('#'));
+  return seq + '|' + (segs[segs.length - 1] || '').trim();
+}
 
 // Cloudflare 边缘函数不能请求 IP 字面地址；非标准端口需较新的兼容日期，排在后面
 function proxyable(url) {
@@ -139,7 +156,9 @@ function standardPort(url) {
  * H.265 线路多数浏览器黑屏，排最后；同类按清晰度从高到低。
  */
 function rankWebLines({ direct = [], proxy = [], china = [] }) {
-  const byHeight = (a, b) => (b.height || 0) - (a.height || 0);
+  // 清晰度优先，同清晰度时被更多仓库标为该频道的排前
+  const byHeight = (a, b) =>
+    (b.height || 0) - (a.height || 0) || (b.votes || 1) - (a.votes || 1);
   const isHevc = (x) => x.video === 'hevc';
   const d = direct.filter((x) => !isHevc(x)).sort(byHeight);
   const p = proxy
@@ -251,11 +270,21 @@ async function checkStream(url, mode = 'web') {
         return { state: 'blocked', reason: '子列表不允许跨域' };
       base = r.finalUrl || vUrl;
     }
+    // 点播片源（循环播放的电影、宣传片）冒充直播
+    if (
+      /#EXT-X-ENDLIST/.test(r.body) ||
+      /#EXT-X-PLAYLIST-TYPE:\s*VOD/i.test(r.body)
+    )
+      return { state: 'blocked', reason: '点播片源（非直播）' };
+    const mediaUrl = base;
+    const mediaBody = r.body;
     const seg = r.body
       .split(/\r?\n/)
       .find((l) => l.trim() && !l.startsWith('#'));
     if (!seg) return { state: 'blocked', reason: '无分片' };
     const segUrl = new URL(seg.trim(), base).toString();
+    if (isPlaceholderUrl(segUrl))
+      return { state: 'blocked', reason: '占位画面' };
     if (web && !segUrl.startsWith('https://'))
       return { state: 'blocked', reason: '分片非 https' };
     const s = await req(segUrl, { range: true });
@@ -267,6 +296,22 @@ async function checkStream(url, mode = 'web') {
     if (!height) {
       const hint = url.match(/(2160|1080|720|576|540|480)p?(?![0-9])/i);
       if (hint) height = parseInt(hint[1], 10);
+    }
+    // 实时性：等一个分片时长再取一次列表，内容没前进的是死流 / 静止画面
+    const td = parseFloat(
+      (mediaBody.match(/#EXT-X-TARGETDURATION:\s*([\d.]+)/) || [])[1] || '6'
+    );
+    await sleep(Math.min(Math.max(td, 2) + 2, 14) * 1000);
+    try {
+      const again = await req(mediaUrl);
+      if (
+        again.ok &&
+        again.body.includes('#EXTINF') &&
+        playlistProgress(again.body) === playlistProgress(mediaBody)
+      )
+        return { state: 'blocked', reason: '直播不更新（死流）' };
+    } catch {
+      // 第二次取列表失败不判死，避免偶发网络抖动误杀
     }
     return { state: 'ok', height, video };
   } catch (e) {
@@ -315,14 +360,27 @@ async function main() {
 
   // 按频道合并，收集候选地址（http 尝试升级为 https；跳过 IPv6 字面地址）
   const channels = new Map();
+  const reasons = {};
+  const owners = new Map(); // 同一条流 → 挂在哪些频道下
   for (const it of items) {
     const n = normalize(it);
     if (!n) continue;
-    const original = it.url.trim();
+    const original = it.url.trim().replace(/#.*$/, '');
     if (!/^https?:\/\//i.test(original) || /^https?:\/\/\[/.test(original))
       continue;
     if (/youtube\.com|youtu\.be/i.test(original) || RESTREAM_RE.test(original))
       continue;
+    // 台名与地址矛盾（标着 CCTV-1、地址是 cctv5）或占位画面：不收
+    const bad =
+      identityConflict(n.name, original) ||
+      (isPlaceholderUrl(original) ? '占位画面' : null);
+    if (bad) {
+      reasons[bad] = (reasons[bad] || 0) + 1;
+      continue;
+    }
+    const sk = streamKey(original);
+    if (!owners.has(sk)) owners.set(sk, new Set());
+    owners.get(sk).add(n.key);
     if (!channels.has(n.key))
       channels.set(n.key, {
         ...n,
@@ -340,13 +398,59 @@ async function main() {
       ch.tvUrls.set(original, {
         height: it.heightHint || 0,
         chinaVerified: it.chinaVerified,
+        sources: new Set(),
       });
+    const meta = ch.tvUrls.get(original);
+    meta.chinaVerified = meta.chinaVerified || it.chinaVerified;
+    meta.sources.add(it.source);
     // 网页：https（http 尝试升级）
     const url = original.startsWith('http://')
       ? 'https://' + original.slice(7)
       : original;
     if (!ch.urls.has(url)) ch.urls.set(url, it.heightHint || 0);
   }
+
+  // 同一条流挂在多个台名下：
+  //   地址能认出是哪个台（cctv1、hunanws…）→ 只留给那个台；
+  //   台名互相包含（浙江经济 / 浙江经济生活、东方卫视 / 东方卫视4K）→ 同一个台，只留在最短的基础名下；
+  //   台名无关（中天新闻 / 中天综合）→ 说不清是哪个台，全部丢弃
+  for (const [sk, keys] of owners) {
+    if (keys.size < 2) continue;
+    const named = Array.from(keys).map((k) => channels.get(k));
+    const sample = Array.from(named[0].tvUrls.keys()).find(
+      (u) => streamKey(u) === sk
+    );
+    let keep = named.filter((ch) => identityConfirms(ch.name, sample || sk));
+    if (keep.length !== 1) {
+      const base = named
+        .slice()
+        .sort((a, b) => matchKey(a.name).length - matchKey(b.name).length)[0];
+      const bk = matchKey(base.name);
+      const related = named.every(
+        (ch) => ch === base || matchKey(ch.name).includes(bk)
+      );
+      keep = related ? [base] : [];
+    }
+    for (const ch of named) {
+      if (keep.includes(ch)) continue;
+      for (const url of Array.from(ch.tvUrls.keys())) {
+        if (streamKey(url) !== sk) continue;
+        ch.tvUrls.delete(url);
+        ch.urls.delete(url.replace(/^http:\/\//, 'https://'));
+        const why = keep.length ? '同一台的重复台名' : '多个台名共用同一地址';
+        reasons[why] = (reasons[why] || 0) + 1;
+      }
+    }
+  }
+  for (const [key, ch] of channels)
+    if (!ch.tvUrls.size && !ch.urls.size) channels.delete(key);
+  // 每条线路被几个仓库标为该频道（多源一致更可信）
+  const votesOf = (ch, url) =>
+    (
+      ch.tvUrls.get(url) ||
+      ch.tvUrls.get(url.replace(/^https:\/\//, 'http://')) ||
+      {}
+    ).sources?.size || 1;
 
   const tasks = [];
   for (const ch of channels.values())
@@ -373,7 +477,6 @@ async function main() {
     if (!lines.has(key)) lines.set(key, { direct: [], proxy: [], china: [] });
     return lines.get(key);
   };
-  const reasons = {};
   for (const r of results) {
     const b = bucket(r.ch.key);
     if (r.state === 'ok')
@@ -382,6 +485,7 @@ async function main() {
         height: r.height || r.ch.urls.get(r.url) || 0,
         video: r.video,
         direct: true,
+        votes: votesOf(r.ch, r.url),
       });
     else reasons[r.reason] = (reasons[r.reason] || 0) + 1;
   }
@@ -393,7 +497,10 @@ async function main() {
         url: r.url,
         height: r.height || meta.height || 0,
         video: r.video,
+        votes: meta.sources.size,
       });
+    else if (r.state === 'blocked' && /非直播|死流|占位/.test(r.reason))
+      reasons[r.reason] = (reasons[r.reason] || 0) + 1;
     else if (
       r.state === 'unreachable' &&
       r.url.startsWith('https://') &&
@@ -403,6 +510,7 @@ async function main() {
         url: r.url,
         height: meta.height || 0,
         trusted: meta.chinaVerified,
+        votes: meta.sources.size,
       });
   }
 
@@ -412,7 +520,11 @@ async function main() {
     const b = lines.get(ch.key);
     if (!b) continue;
     // 国内检测仓库给的线路排前面
-    b.china.sort((x, y) => Number(!!y.trusted) - Number(!!x.trusted));
+    b.china.sort(
+      (x, y) =>
+        Number(!!y.trusted) - Number(!!x.trusted) ||
+        (y.votes || 1) - (x.votes || 1)
+    );
     const ranked = rankWebLines(b);
     const verified = ranked.filter((x) => x.kind !== 'c');
     const cnOnly = !verified.length;
