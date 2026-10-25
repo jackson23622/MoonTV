@@ -24,7 +24,16 @@ export interface LiveData {
   hidden?: number;
 }
 
-export const DEFAULT_SUBSCRIPTION = 'https://bde4.dpdns.org/tv/live.m3u';
+/** 默认订阅：fanmingming/live 的 IPv6 列表（央视、卫视、内蒙古、浙江） */
+export const DEFAULT_SUBSCRIPTION =
+  'https://raw.githubusercontent.com/fanmingming/live/refs/heads/main/tv/m3u/ipv6.m3u';
+/** 本站精选订阅：每 6 小时检测，含少儿、港澳台（TVBS 等） */
+export const SITE_SUBSCRIPTION = 'https://bde4.dpdns.org/tv/live.m3u';
+/** 订阅预设（网页一键切换） */
+export const SUBSCRIPTION_PRESETS = [
+  { name: '默认（fanmingming IPv6）', url: DEFAULT_SUBSCRIPTION },
+  { name: '本站精选（含少儿、港澳台）', url: SITE_SUBSCRIPTION },
+];
 export const SUBSCRIPTION_KEY = 'live_subscription_url';
 const MAX_WEB_URLS = 4;
 

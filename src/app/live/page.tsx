@@ -26,7 +26,9 @@ import {
   LiveChannel,
   LiveData,
   parseSubscription,
+  SITE_SUBSCRIPTION,
   SUBSCRIPTION_KEY,
+  SUBSCRIPTION_PRESETS,
 } from '@/lib/live-subscription';
 
 import PageLayout from '@/components/PageLayout';
@@ -101,7 +103,7 @@ function LivePageClient() {
       const d = buildLiveData(
         entries,
         verified,
-        url === DEFAULT_SUBSCRIPTION && !!verified
+        SUBSCRIPTION_PRESETS.some((p) => p.url === url) && !!verified
       );
       setData(d);
       setSubUrl(url);
@@ -312,6 +314,21 @@ function LivePageClient() {
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
               直播订阅地址（m3u / txt）
             </label>
+            <div className='mb-2 flex flex-wrap gap-2'>
+              {SUBSCRIPTION_PRESETS.map((p) => (
+                <button
+                  key={p.url}
+                  onClick={() => saveSubscription(p.url)}
+                  className={`px-3 py-1 rounded-full text-xs transition-colors ${
+                    subUrl === p.url
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200'
+                  }`}
+                >
+                  {p.name}
+                </button>
+              ))}
+            </div>
             <div className='flex flex-col sm:flex-row gap-2'>
               <input
                 value={subInput}
@@ -355,12 +372,12 @@ function LivePageClient() {
             <p className='mt-2 text-xs text-gray-500 dark:text-gray-400 leading-5'>
               网页显示 {webPlayable} 个可播放的频道
               {hiddenChannels > 0 &&
-                `（另有 ${hiddenChannels} 个只有 http 线路，浏览器无法播放，已隐藏，电视上可以看）`}
+                `（另有 ${hiddenChannels} 个只有 http / IPv6 线路，浏览器无法播放，已隐藏，电视上可以看）`}
               。电视客户端（OrionTV「设置 → 直播源」）可填同一地址：
-              <span className='font-mono break-all'>
-                {' '}
-                {DEFAULT_SUBSCRIPTION}
-              </span>
+              <span className='font-mono break-all'> {subUrl}</span>
+              。默认订阅的大部分线路是移动 IPv6，家里宽带需开启 IPv6
+              才能看；没有 IPv6 请用
+              <span className='font-mono break-all'> {SITE_SUBSCRIPTION}</span>
               。
               <br />
               想在电视上用其他订阅，可填
@@ -547,11 +564,11 @@ function LivePageClient() {
               </div>
               {data && (
                 <p className='mt-3 text-xs text-gray-400 dark:text-gray-500'>
-                  {subUrl === DEFAULT_SUBSCRIPTION
+                  {subUrl === SITE_SUBSCRIPTION
                     ? `频道来自 GitHub：${(data.sources || [])
                         .map((x) => x.name)
                         .join('、')}，每 6 小时自动检测更新。`
-                    : `当前订阅：${subUrl}`}
+                    : `当前订阅：${subUrl}（网页播放使用本站检测过的线路）`}
                 </p>
               )}
             </div>

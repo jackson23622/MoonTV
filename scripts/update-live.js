@@ -52,6 +52,12 @@ const SOURCES = [
     chinaVerified: true,
     url: 'https://raw.githubusercontent.com/big-mouth-cn/tv/main/iptv-ok.m3u',
   },
+  // 网页默认订阅：fanmingming/live（其中 https 线路参与检测，IPv6 线路自动跳过）
+  {
+    name: 'fanmingming/live',
+    chinaVerified: true,
+    url: 'https://raw.githubusercontent.com/fanmingming/live/refs/heads/main/tv/m3u/ipv6.m3u',
+  },
   // 中文频道全集（含台湾、香港、新加坡等地中文台）
   {
     name: 'iptv-org/iptv (中文)',
