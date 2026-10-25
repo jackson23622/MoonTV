@@ -37,10 +37,10 @@ export function processImageUrl(originalUrl: string): string {
   const proxyUrl = getImageProxyUrl();
   if (proxyUrl) return `${proxyUrl}${encodeURIComponent(originalUrl)}`;
 
-  // 未配置外部代理时：必然加载失败的图片直接走本站内置代理
-  // - http:// 图片在 https 页面上会被浏览器按混合内容拦截
-  // - 豆瓣图床会拒绝外站引用
-  if (needsBuiltinImageProxy(originalUrl)) {
+  // 未配置外部代理时，网络图片一律走本站内置代理（用户在设置里关闭图片代理除外）：
+  // 解决 http 图片被 https 页面拦截、豆瓣防盗链、图床在部分网络下打不开的问题
+  if (isImageProxyDisabled()) return originalUrl;
+  if (/^https?:\/\//i.test(originalUrl)) {
     return getBuiltinImageProxyUrl(originalUrl);
   }
   return originalUrl;
@@ -48,19 +48,13 @@ export function processImageUrl(originalUrl: string): string {
 
 const BUILTIN_IMAGE_PROXY = '/api/image-proxy?url=';
 
-function needsBuiltinImageProxy(url: string): boolean {
-  if (!/^https?:\/\//i.test(url)) return false;
-  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
-    if (/^http:\/\//i.test(url)) return true;
-  }
-  return /(^|\.)doubanio\.com$/i.test(safeHost(url));
-}
-
-function safeHost(url: string): string {
+function isImageProxyDisabled(): boolean {
+  if (typeof window === 'undefined') return false;
   try {
-    return new URL(url).hostname;
+    const v = localStorage.getItem('enableImageProxy');
+    return v !== null && JSON.parse(v) === false;
   } catch {
-    return '';
+    return false;
   }
 }
 
@@ -69,16 +63,20 @@ export function getBuiltinImageProxyUrl(originalUrl: string): string {
 }
 
 /**
- * 图片加载失败时的兜底地址：直连失败则改走本站内置代理；
- * 已经是代理地址（或无法代理）时返回 null，由调用方显示占位。
+ * 图片加载失败时的兜底地址：代理失败则改直连，直连失败则改走本站代理；
+ * 两种都试过时返回 null，由调用方显示占位。
  */
 export function getImageFallbackUrl(
   originalUrl: string,
   currentSrc: string
 ): string | null {
   if (!originalUrl || !/^https?:\/\//i.test(originalUrl)) return null;
-  if (currentSrc.includes(BUILTIN_IMAGE_PROXY.split('?')[0])) return null;
-  return getBuiltinImageProxyUrl(originalUrl);
+  const proxied = getBuiltinImageProxyUrl(originalUrl);
+  const isProxied = currentSrc.includes(BUILTIN_IMAGE_PROXY.split('?')[0]);
+  const isDirect = currentSrc === originalUrl;
+  if (isProxied) return originalUrl;
+  if (isDirect) return null; // 直连已是最后一次尝试
+  return proxied;
 }
 
 /**

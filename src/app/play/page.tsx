@@ -1692,8 +1692,12 @@ function PlayPageClient() {
                     referrerPolicy='no-referrer'
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
+                      if (target.dataset.fallback) return;
                       const next = getImageFallbackUrl(videoCover, target.src);
-                      if (next) target.src = next;
+                      if (next) {
+                        target.dataset.fallback = '1';
+                        target.src = next;
+                      }
                     }}
                   />
                 ) : (

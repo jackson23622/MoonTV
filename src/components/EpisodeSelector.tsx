@@ -478,11 +478,14 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                               referrerPolicy='no-referrer'
                               onError={(e) => {
                                 const target = e.target as HTMLImageElement;
-                                const next = getImageFallbackUrl(
-                                  source.poster,
-                                  target.src
-                                );
+                                const next = target.dataset.fallback
+                                  ? null
+                                  : getImageFallbackUrl(
+                                      source.poster,
+                                      target.src
+                                    );
                                 if (next) {
+                                  target.dataset.fallback = '1';
                                   target.src = next;
                                 } else {
                                   target.style.display = 'none';
