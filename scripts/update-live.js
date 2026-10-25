@@ -83,6 +83,11 @@ const {
   normalize,
   sortChannels,
 } = require('../src/lib/channel-rules');
+const {
+  probeTsVideo,
+  pickVariant,
+  AUDIO_URL_RE,
+} = require('../src/lib/ts-probe');
 
 // ---------- 可播放性检测 ----------
 
@@ -96,7 +101,7 @@ async function req(url, { range = false, ms = TIMEOUT_MS } = {}) {
       'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
     };
-    if (range) headers.Range = 'bytes=0-2047';
+    if (range) headers.Range = 'bytes=0-3759'; // 20 个 TS 包，足够读到 PAT/PMT
     const res = await fetch(url, {
       headers,
       signal: ctrl.signal,
@@ -106,14 +111,22 @@ async function req(url, { range = false, ms = TIMEOUT_MS } = {}) {
     const corsOk =
       acao === '*' || (acao && acao.replace(/\/$/, '') === SITE_ORIGIN);
     let body = '';
+    let bytes = null;
     if (range) {
       try {
-        await res.arrayBuffer();
+        bytes = new Uint8Array(await res.arrayBuffer()).subarray(0, 3760);
       } catch {}
     } else {
       body = await res.text();
     }
-    return { status: res.status, ok: res.ok, corsOk, body, finalUrl: res.url };
+    return {
+      status: res.status,
+      ok: res.ok,
+      corsOk,
+      body,
+      bytes,
+      finalUrl: res.url,
+    };
   } finally {
     clearTimeout(t);
   }
@@ -126,6 +139,8 @@ async function checkStream(url, mode = 'web') {
   try {
     if (web && !url.startsWith('https://'))
       return { state: 'blocked', reason: '非 https' };
+    if (AUDIO_URL_RE.test(url))
+      return { state: 'blocked', reason: '纯音频（黑屏）' };
     let r = await req(url);
     if ([404, 410].includes(r.status))
       return { state: 'blocked', reason: 'HTTP ' + r.status };
@@ -137,13 +152,12 @@ async function checkStream(url, mode = 'web') {
     let base = r.finalUrl || url;
     let height = 0;
     if (r.body.includes('#EXT-X-STREAM-INF')) {
-      for (const m of r.body.matchAll(/RESOLUTION=\d+x(\d+)/gi))
-        height = Math.max(height, parseInt(m[1], 10));
-      const variant = r.body
-        .split(/\r?\n/)
-        .find((l) => l.trim() && !l.startsWith('#'));
+      const variant = pickVariant(r.body);
       if (!variant) return { state: 'blocked', reason: '空播放列表' };
-      const vUrl = new URL(variant.trim(), base).toString();
+      if (variant.kind === 'audio')
+        return { state: 'blocked', reason: '纯音频（黑屏）' };
+      height = variant.height;
+      const vUrl = new URL(variant.uri, base).toString();
       if (web && !vUrl.startsWith('https://'))
         return { state: 'blocked', reason: '分片非 https' };
       r = await req(vUrl);
@@ -163,11 +177,14 @@ async function checkStream(url, mode = 'web') {
     const s = await req(segUrl, { range: true });
     if (!s.ok) return { state: 'unreachable', reason: '分片 HTTP ' + s.status };
     if (web && !s.corsOk) return { state: 'blocked', reason: '分片不允许跨域' };
+    // 读分片里的 PMT：只有音频的线路会黑屏，H.265 在多数浏览器里也是黑屏
+    const video = probeTsVideo(s.bytes);
+    if (video === 'none') return { state: 'blocked', reason: '纯音频（黑屏）' };
     if (!height) {
       const hint = url.match(/(2160|1080|720|576|540|480)p?(?![0-9])/i);
       if (hint) height = parseInt(hint[1], 10);
     }
-    return { state: 'ok', height };
+    return { state: 'ok', height, video };
   } catch (e) {
     return {
       state: 'unreachable',
@@ -273,7 +290,11 @@ async function main() {
       byChannel.set(r.ch.key, { ok: [], maybe: [] });
     const b = byChannel.get(r.ch.key);
     if (r.state === 'ok')
-      b.ok.push({ url: r.url, height: r.height || r.ch.urls.get(r.url) || 0 });
+      b.ok.push({
+        url: r.url,
+        height: r.height || r.ch.urls.get(r.url) || 0,
+        video: r.video,
+      });
     else {
       if (r.state === 'unreachable') b.maybe.push(r.url);
       reasons[r.reason] = (reasons[r.reason] || 0) + 1;
@@ -290,7 +311,12 @@ async function main() {
     verifiedChannels++;
     verifiedUrls += b.ok.length;
     // 高清线路优先
-    b.ok.sort((x, y) => y.height - x.height);
+    // 网页：H.264 线路优先（所有浏览器都能放），H.265 排后面作备用；同编码按清晰度
+    b.ok.sort(
+      (x, y) =>
+        Number(x.video === 'hevc') - Number(y.video === 'hevc') ||
+        y.height - x.height
+    );
     const urls = [...b.ok.map((o) => o.url), ...b.maybe].slice(
       0,
       MAX_URLS_PER_CHANNEL

@@ -121,7 +121,9 @@ export function channelKey(name: string): string {
  */
 export function buildLiveData(
   entries: RawEntry[],
-  webVerified?: LiveData | null
+  webVerified?: LiveData | null,
+  /** 本站订阅：只显示本站检测过网页能播的频道（未验证的线路多半跨域受限或黑屏） */
+  strict = false
 ): LiveData {
   const verified = new Map<string, LiveChannel>();
   for (const g of webVerified?.groups || []) {
@@ -160,7 +162,7 @@ export function buildLiveData(
         new Set([...(v?.urls || []), ...https, ...(v ? [] : upgraded)])
       ).slice(0, MAX_WEB_URLS);
       // 网页无法播放的频道不显示（电视订阅里仍保留）
-      if (!v && https.length === 0) {
+      if (!v && (strict || https.length === 0)) {
         hidden++;
         return;
       }

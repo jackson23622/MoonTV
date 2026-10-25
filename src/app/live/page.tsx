@@ -98,7 +98,11 @@ function LivePageClient() {
       ]);
       const entries = parseSubscription(text);
       if (!entries.length) throw new Error('订阅里没有可识别的频道');
-      const d = buildLiveData(entries, verified);
+      const d = buildLiveData(
+        entries,
+        verified,
+        url === DEFAULT_SUBSCRIPTION && !!verified
+      );
       setData(d);
       setSubUrl(url);
 
@@ -190,6 +194,13 @@ function LivePageClient() {
     const onPlaying = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
       setStatus('playing');
+      // 有声音没画面（纯音频线路或解码失败）：3 秒后仍无画面就换下一条
+      timerRef.current = setTimeout(() => {
+        if (video.videoWidth === 0 && video.currentTime > 0) {
+          console.warn('[直播] 线路无画面，切换下一条', url);
+          nextLine();
+        }
+      }, 3000);
     };
     video.addEventListener('playing', onPlaying);
     timerRef.current = setTimeout(() => {
