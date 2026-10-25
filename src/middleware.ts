@@ -124,6 +124,7 @@ function shouldSkipAuth(pathname: string): boolean {
     '/icons/',
     '/logo.png',
     '/screenshot.png',
+    '/tv/', // 电视客户端（OrionTV）直播订阅，客户端无法登录
   ];
 
   return skipPaths.some((path) => pathname.startsWith(path));
