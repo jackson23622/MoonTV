@@ -12,7 +12,7 @@ http://gmxw.7766.org:808/hls/93/index.m3u8
 #EXTINF:-1 tvg-name="CCTV-5+" tvg-logo="https://bde4.dpdns.org/tv/logos/55fd6190fba9.png" group-title="央视频道",CCTV-5+
 http://120.198.95.220:9901/tsfile/live/1020_1.m3u8?key=txiptv&playlive=1&down=1
 #EXTINF:-1 tvg-name="CCTV-6" tvg-logo="https://bde4.dpdns.org/tv/logos/afc4d9322210.png" group-title="央视频道",CCTV-6
-http://120.198.95.220:9901/tsfile/live/1021_1.m3u8?key=txiptv&playlive=1&down=1
+http://69.30.245.50/live/cctv6.m3u8
 #EXTINF:-1 tvg-name="CCTV-7" tvg-logo="https://bde4.dpdns.org/tv/logos/bb88fb72dc29.png" group-title="央视频道",CCTV-7
 http://74.91.26.218:82/live/cctv7hd.m3u8
 #EXTINF:-1 tvg-name="CCTV-8" tvg-logo="https://bde4.dpdns.org/tv/logos/ba2463942b75.png" group-title="央视频道",CCTV-8
