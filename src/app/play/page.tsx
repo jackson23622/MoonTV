@@ -18,6 +18,7 @@ import {
   savePlayRecord,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import { lockForVideo, unlockOrientation } from '@/lib/orientation';
 import { SearchResult } from '@/lib/types';
 import {
   getImageFallbackUrl,
@@ -1236,6 +1237,12 @@ function PlayPageClient() {
       // 监听播放器事件
       artPlayerRef.current.on('ready', () => {
         setError(null);
+      });
+
+      // 手机端全屏：按画面方向锁定屏幕（横向片源直接横屏），退出全屏解锁
+      artPlayerRef.current.on('fullscreen', (state: boolean) => {
+        if (state) lockForVideo(artPlayerRef.current?.video);
+        else unlockOrientation();
       });
 
       artPlayerRef.current.on('video:volumechange', () => {

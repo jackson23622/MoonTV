@@ -31,6 +31,7 @@ import {
   SUBSCRIPTION_KEY,
   SUBSCRIPTION_PRESETS,
 } from '@/lib/live-subscription';
+import { bindFullscreenOrientation } from '@/lib/orientation';
 
 import PageLayout from '@/components/PageLayout';
 
@@ -329,6 +330,9 @@ function LivePageClient() {
   }, [current, lineIndex, cleanup, nextLine]);
 
   useEffect(() => cleanup, [cleanup]);
+
+  // 手机端点全屏直接横屏（直播画面都是横向）
+  useEffect(() => bindFullscreenOrientation(() => videoRef.current), []);
 
   // 全部线路失败后停止加载，避免后台反复重试
   useEffect(() => {
