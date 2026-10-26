@@ -1,20 +1,11 @@
 /* eslint-disable */
-// 直播频道的台标与节目单：
-//   台标 —— 来自 fanmingming/live 台标库（tv/*.png），只下载本站收录频道用到的那些，存到 public/tv/logos/
-//   节目单 —— 来自 fanmingming/live 的 e.xml（XMLTV，每 2 小时更新），抽取本站频道前后约两天的节目，
-//            生成 public/live/epg.json（几百 KB 的静态文件，网页直接读，不占边缘函数 CPU）
+// 电视订阅的台标：来自台标库（tv/*.png），只下载本站收录频道用到的那些，存到 public/tv/logos/
 const fs = require('fs');
 const path = require('path');
 const { matchKey, matchCandidates } = require('../src/lib/channel-rules');
 
 // 你自己的 fork 优先（定时同步、不受上游停更影响），上游镜像兜底
 const LOGO_REPOS = ['jackson23622/live'];
-const EPG_URLS = [
-  'https://raw.githubusercontent.com/jackson23622/live/main/e.xml',
-];
-const EPG_BEFORE_SEC = 6 * 3600; // 保留 6 小时前开始的节目（正在播的长节目）
-const EPG_AFTER_SEC = 48 * 3600; // 保留未来 48 小时（检测每 6 小时一次，留足余量）
-
 // ---------- 台标 ----------
 
 /** 台标库文件名 → 按频道 key 建索引（同 key 优先 png） */
@@ -156,125 +147,8 @@ async function syncLogos(names, logoDir) {
   return result;
 }
 
-// ---------- 节目单 ----------
-
-function decodeXml(s) {
-  return s
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;|&#39;/g, "'")
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
-    .replace(/&amp;/g, '&')
-    .trim();
-}
-
-/** XMLTV 时间「20261020114900 +0800」→ Unix 秒 */
-function parseXmltvTime(t) {
-  const m = String(t || '').match(
-    /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?\s*([+-]\d{4})?/
-  );
-  if (!m) return NaN;
-  const [, y, mo, d, h, mi, s = '00', tz = '+0800'] = m;
-  const off =
-    (tz[0] === '-' ? -1 : 1) *
-    (parseInt(tz.slice(1, 3), 10) * 60 + parseInt(tz.slice(3, 5), 10));
-  return Date.UTC(+y, +mo - 1, +d, +h, +mi, +s) / 1000 - off * 60;
-}
-
-/**
- * 从 XMLTV 抽取指定频道的节目。
- * names：本站频道名；返回 { 频道名: [[开始秒, 结束秒, 标题], ...] }（按开始时间排序、去重叠）
- */
-function extractEpg(xml, names, nowSec) {
-  const from = nowSec - EPG_BEFORE_SEC;
-  const to = nowSec + EPG_AFTER_SEC;
-  // 1) 节目单里的频道：key（由 id 与 display-name 得出）→ id
-  const keyToId = new Map();
-  const addKey = (k, id) => k && !keyToId.has(k) && keyToId.set(k, id);
-  const chRe = /<channel\s+id="([^"]*)"\s*>([\s\S]*?)<\/channel>/g;
-  let m;
-  while ((m = chRe.exec(xml))) {
-    const id = decodeXml(m[1]);
-    addKey(matchKey(id), id);
-    const dnRe = /<display-name[^>]*>([\s\S]*?)<\/display-name>/g;
-    let d;
-    while ((d = dnRe.exec(m[2]))) addKey(matchKey(decodeXml(d[1])), id);
-  }
-  // 没有 <channel> 声明、只在 <programme channel="…"> 里出现的频道
-  const attrRe = /<programme\b[^>]*?\bchannel="([^"]*)"/g;
-  while ((m = attrRe.exec(xml))) {
-    const id = decodeXml(m[1]);
-    addKey(matchKey(id), id);
-  }
-  // 2) 每个本站频道取第一个命中的候选（正名优先，别名 / 回退在后），一个节目单频道可供多个本站频道使用
-  const idToNames = new Map();
-  for (const name of names) {
-    const hit = matchCandidates(name).find((k) => keyToId.has(k));
-    if (!hit) continue;
-    const id = keyToId.get(hit);
-    if (!idToNames.has(id)) idToNames.set(id, []);
-    idToNames.get(id).push(name);
-  }
-
-  const out = {};
-  const prRe = /<programme\s+([^>]*)>([\s\S]*?)<\/programme>/g;
-  while ((m = prRe.exec(xml))) {
-    const attrs = m[1];
-    const id = decodeXml((attrs.match(/channel="([^"]*)"/) || [])[1] || '');
-    const targets = idToNames.get(id);
-    if (!targets) continue;
-    const start = parseXmltvTime((attrs.match(/start="([^"]*)"/) || [])[1]);
-    const stop = parseXmltvTime((attrs.match(/stop="([^"]*)"/) || [])[1]);
-    if (!(start < stop) || stop < from || start > to) continue;
-    const title = decodeXml(
-      (m[2].match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || ''
-    );
-    if (!title) continue;
-    for (const name of targets)
-      (out[name] = out[name] || []).push([start, stop, title]);
-  }
-  // 排序、去掉重叠（同一时间段节目单偶有重复条目）
-  for (const name of Object.keys(out)) {
-    const list = out[name].sort((a, b) => a[0] - b[0]);
-    const clean = [];
-    for (const p of list) {
-      const last = clean[clean.length - 1];
-      if (last && p[0] < last[1]) {
-        if (p[0] === last[0]) continue;
-        last[1] = p[0];
-      }
-      clean.push(p);
-    }
-    out[name] = clean;
-  }
-  return out;
-}
-
-async function buildEpg(names, nowSec = Math.floor(Date.now() / 1000)) {
-  for (const url of EPG_URLS) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(60000) });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const xml = await res.text();
-      if (!xml.includes('<programme')) throw new Error('不是 XMLTV');
-      const ch = extractEpg(xml, names, nowSec);
-      const n = Object.keys(ch).length;
-      console.log(`节目单：${n}/${names.length} 个频道有节目（${url}）`);
-      if (n) return { url, ch };
-    } catch (e) {
-      console.warn(`节目单 ${url} 获取失败：${e.message}`);
-    }
-  }
-  return { url: null, ch: {} };
-}
-
 module.exports = {
   buildLogoIndex,
   findLogo,
   syncLogos,
-  parseXmltvTime,
-  extractEpg,
-  buildEpg,
 };

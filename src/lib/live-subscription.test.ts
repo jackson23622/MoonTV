@@ -1,9 +1,4 @@
-import {
-  buildLiveData,
-  channelKey,
-  parseSubscription,
-  toTvM3u,
-} from './live-subscription';
+import { channelKey, parseSubscription, toTvM3u } from './live-subscription';
 
 const M3U = `#EXTM3U
 #EXTINF:-1 tvg-name="CCTV-1" tvg-logo="https://logo/cctv1.png" group-title="央视频道",CCTV-1
@@ -22,7 +17,7 @@ CCTV-1,http://a/1.m3u8#http://b/1.m3u8
 湖南卫视,https://c/hn.m3u8
 `;
 
-describe('直播订阅', () => {
+describe('订阅解析', () => {
   test('解析 m3u', () => {
     const e = parseSubscription(M3U);
     expect(e).toHaveLength(4);
@@ -41,36 +36,6 @@ describe('直播订阅', () => {
       'https://c/hn.m3u8',
     ]);
     expect(e[2].group).toBe('卫视频道');
-  });
-
-  test('合并网页已验证线路；网页无法播放的频道不显示', () => {
-    const verified = {
-      updatedAt: '2026-10-25T00:00:00Z',
-      groups: [
-        {
-          name: '央视频道',
-          channels: [
-            {
-              name: 'CCTV-1',
-              urls: ['https://ok/cctv1.m3u8'],
-              hd: true,
-              height: 1080,
-            },
-          ],
-        },
-      ],
-    };
-    const d = buildLiveData(parseSubscription(M3U), verified);
-    const all = d.groups.flatMap((g) => g.channels);
-    const cctv1 = all.find((c) => c.name === 'CCTV-1');
-    expect(cctv1?.urls[0]).toBe('https://ok/cctv1.m3u8');
-    expect(cctv1?.hd).toBe(true);
-    const tvbs = all.find((c) => c.name === 'TVBS新聞台');
-    expect(tvbs?.urls).toEqual(['https://tw.example/tvbs.m3u8']);
-    // 只有 http 线路、网页无法播放的频道不显示，只计数
-    expect(all.find((c) => c.name === '金鹰卡通')).toBeUndefined();
-    expect(all.find((c) => c.name === 'CCTV-14')).toBeUndefined();
-    expect(d.hidden).toBe(2);
   });
 
   test('频道名 key', () => {

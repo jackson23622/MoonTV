@@ -1,7 +1,6 @@
 /* eslint-disable */
 // 直播频道剔除 / 归类规则（唯一来源）
-// 使用方：scripts/update-live.js（生成网页数据与电视订阅）、/tv/filter.m3u（清洗任意订阅供电视客户端使用）、
-//        网页直播页的自定义订阅。
+// 使用方：scripts/update-live.js（生成电视订阅）、/tv/filter.m3u（清洗任意订阅供电视客户端使用）。
 // 规则：只保留中文正规电视台；剔除外语台、宗教台、平台转播、循环台、解说台、景区镜头等。
 // 纯 JS、无依赖，可在 Node、浏览器与边缘函数中直接使用。
 const GROUP_ORDER = [
@@ -286,15 +285,6 @@ function matchCandidates(name) {
   return Array.from(new Set(out.filter(Boolean)));
 }
 
-// \u7f51\u9875\u7ebf\u8def\u7ecf\u672c\u7ad9\u8fb9\u7f18\u51fd\u6570\u4ee3\u7406\u64ad\u653e\uff08http \u7ebf\u8def\u3001\u4e0d\u5141\u8bb8\u8de8\u57df\u7684\u7ebf\u8def\uff09
-const PROXY_PREFIX = '/api/live/proxy?u=';
-function toProxyUrl(url) {
-  return PROXY_PREFIX + encodeURIComponent(url);
-}
-function isProxyUrl(url) {
-  return typeof url === 'string' && url.startsWith(PROXY_PREFIX);
-}
-
 const KIDS_RE =
   /少儿|少兒|卡通|动漫|動漫|动画|動畫|儿童|兒童|幼幼|亲子|親子|KIDS|CARTOON|CHILDREN|TOON/i;
 const CGTN_ALIAS = {
@@ -551,7 +541,4 @@ module.exports = {
   sortChannels,
   matchKey,
   matchCandidates,
-  PROXY_PREFIX,
-  toProxyUrl,
-  isProxyUrl,
 };

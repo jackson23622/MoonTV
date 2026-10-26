@@ -1,6 +1,6 @@
 name: Update Live Channels
 
-# 每 6 小时从 GitHub 上的 IPTV 仓库拉取直播源并检测，生成 public/live/channels.json、epg.json 与 public/tv/ 台标和电视订阅
+# 每 6 小时从 jackson23622/live 拉取直播源并检测，生成 public/tv/ 下的电视订阅（OrionTV 等）与台标
 on:
   schedule:
     - cron: '41 */6 * * *'
@@ -40,25 +40,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A public/live public/tv .github/live-report.md
+          git add -A public/tv .github/live-report.md
           if git diff --cached --quiet; then
             echo "无变化"
             exit 0
           fi
-          if git diff --cached --quiet -- public/live public/tv; then
+          if git diff --cached --quiet -- public/tv; then
             git commit -m "chore: 更新直播源检测报告 [skip ci]"
           else
             git commit -m "chore: 自动更新直播频道 $(TZ=Asia/Shanghai date '+%F %H:%M')"
           fi
           # 生成文件以本次检测结果为准：推送被拒（期间有其他提交）时，基于最新远端重放本次结果再推
-          mkdir -p /tmp/gen/public /tmp/gen/.github && cp -r public/live public/tv /tmp/gen/public/ && cp .github/live-report.md /tmp/gen/.github/
+          mkdir -p /tmp/gen/public /tmp/gen/.github && cp -r public/tv /tmp/gen/public/ && cp .github/live-report.md /tmp/gen/.github/
           msg="$(git log -1 --format=%B)"
           for i in 1 2 3; do
             git push && exit 0
             git fetch origin ${{ github.ref_name }}
             git reset --hard origin/${{ github.ref_name }}
             cp -r /tmp/gen/. .
-            git add -A public/live public/tv .github/live-report.md
+            git add -A public/tv .github/live-report.md
             git diff --cached --quiet && exit 0
             git commit -m "$msg"
           done
