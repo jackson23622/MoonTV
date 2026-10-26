@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { getAvailableApiSites, getCacheTime } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import { rankSearchResults } from '@/lib/search-rank';
 
 export const runtime = 'edge';
 
@@ -26,7 +27,8 @@ export async function GET(request: Request) {
 
   try {
     const results = await Promise.all(searchPromises);
-    const flattenedResults = results.flat();
+    // 与搜索词越接近的排越前（OrionTV 等客户端直接按此顺序展示），数据结构不变
+    const flattenedResults = rankSearchResults(results.flat(), query);
     const cacheTime = await getCacheTime();
 
     return NextResponse.json(
