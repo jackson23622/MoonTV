@@ -1,3 +1,9 @@
+import {
+  buildDoubanRecommendUrl,
+  DoubanRecommendApiResponse,
+  DoubanRecommendParams,
+  parseDoubanRecommend,
+} from './douban.filters';
 import { DoubanItem, DoubanResult } from './types';
 import { getDoubanProxyUrl } from './utils';
 
@@ -145,4 +151,37 @@ export async function getDoubanCategories(
 
     return response.json();
   }
+}
+
+/**
+ * 豆瓣多条件筛选（类型 / 地区 / 年代 / 平台 / 排序）
+ * 设置了豆瓣代理时在浏览器端经代理请求，否则走服务端 /api/douban/recommends
+ */
+export async function getDoubanRecommends(
+  params: DoubanRecommendParams
+): Promise<DoubanResult> {
+  if (shouldUseDoubanClient()) {
+    const response = await fetchWithTimeout(buildDoubanRecommendUrl(params));
+    if (!response.ok) {
+      throw new Error(`获取豆瓣筛选数据失败: HTTP ${response.status}`);
+    }
+    const data: DoubanRecommendApiResponse = await response.json();
+    return { code: 200, message: '获取成功', list: parseDoubanRecommend(data) };
+  }
+
+  const qs = new URLSearchParams({
+    type: params.type,
+    start: String(params.start),
+    limit: String(params.limit),
+    genre: params.genre,
+    region: params.region,
+    year: params.year,
+    platform: params.platform,
+    sort: params.sort,
+  });
+  const response = await fetch(`/api/douban/recommends?${qs.toString()}`);
+  if (!response.ok) {
+    throw new Error('获取豆瓣筛选数据失败');
+  }
+  return response.json();
 }

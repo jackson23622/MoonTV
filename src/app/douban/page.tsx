@@ -2,19 +2,35 @@
 
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { getDoubanCategories } from '@/lib/douban.client';
-import { DoubanItem } from '@/lib/types';
+import { getDoubanCategories, getDoubanRecommends } from '@/lib/douban.client';
+import {
+  DEFAULT_FILTERS,
+  DoubanFilterState,
+  DoubanMediaType,
+  normalizeFilters,
+} from '@/lib/douban.filters';
+import { DoubanItem, DoubanResult } from '@/lib/types';
 
+import CapsuleSwitch from '@/components/CapsuleSwitch';
 import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
+import DoubanFilterPanel from '@/components/DoubanFilterPanel';
 import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
 import VideoCard from '@/components/VideoCard';
 
+const PAGE_SIZE = 25;
+
+const MODE_OPTIONS = [
+  { label: '榜单', value: 'rank' },
+  { label: '筛选', value: 'filter' },
+];
+
 function DoubanPageClient() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [doubanData, setDoubanData] = useState<DoubanItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,8 +41,65 @@ function DoubanPageClient() {
   const observerRef = useRef<IntersectionObserver | null>(null);
   const loadingRef = useRef<HTMLDivElement>(null);
   const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 每次重置列表时递增，用于丢弃过期请求的返回（快速切换筛选时防止串数据）
+  const requestIdRef = useRef(0);
+  const [error, setError] = useState<string | null>(null);
 
   const type = searchParams.get('type') || 'movie';
+  const mediaType: DoubanMediaType =
+    type === 'tv' || type === 'show' ? type : 'movie';
+
+  // 模式与筛选条件以 URL 为准：刷新、分享、从播放页返回都能保留
+  const mode: 'rank' | 'filter' =
+    searchParams.get('mode') === 'filter' ? 'filter' : 'rank';
+  const filters = useMemo(
+    () =>
+      normalizeFilters(mediaType, {
+        genre: searchParams.get('genre'),
+        region: searchParams.get('region'),
+        year: searchParams.get('year'),
+        platform: searchParams.get('platform'),
+        sort: searchParams.get('sort'),
+      }),
+    [mediaType, searchParams]
+  );
+  const filterKey = `${mode}|${filters.genre}|${filters.region}|${filters.year}|${filters.platform}|${filters.sort}`;
+
+  const updateUrl = useCallback(
+    (nextMode: 'rank' | 'filter', nextFilters: DoubanFilterState) => {
+      const qs = new URLSearchParams({ type });
+      if (nextMode === 'filter') {
+        qs.set('mode', 'filter');
+        (Object.keys(DEFAULT_FILTERS) as (keyof DoubanFilterState)[]).forEach(
+          (key) => {
+            if (nextFilters[key] !== DEFAULT_FILTERS[key]) {
+              qs.set(key, nextFilters[key]);
+            }
+          }
+        );
+      }
+      router.replace(`/douban?${qs.toString()}`, { scroll: false });
+    },
+    [router, type]
+  );
+
+  const handleModeChange = useCallback(
+    (value: string) => {
+      const nextMode = value === 'filter' ? 'filter' : 'rank';
+      if (nextMode === mode) return;
+      setLoading(true);
+      updateUrl(nextMode, nextMode === 'filter' ? filters : DEFAULT_FILTERS);
+    },
+    [mode, filters, updateUrl]
+  );
+
+  const handleFiltersChange = useCallback(
+    (next: DoubanFilterState) => {
+      setLoading(true);
+      updateUrl('filter', next);
+    },
+    [updateUrl]
+  );
 
   // 选择器状态 - 完全独立，不依赖URL参数
   const [primarySelection, setPrimarySelection] = useState<string>(() => {
@@ -109,23 +182,53 @@ function DoubanPageClient() {
     [type, primarySelection, secondarySelection]
   );
 
+  // 按当前模式获取一页数据
+  const fetchPage = useCallback(
+    (pageStart: number): Promise<DoubanResult> =>
+      mode === 'filter'
+        ? getDoubanRecommends({
+            type: mediaType,
+            start: pageStart,
+            limit: PAGE_SIZE,
+            ...filters,
+          })
+        : getDoubanCategories(getRequestParams(pageStart)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mode, mediaType, filterKey, getRequestParams]
+  );
+
+  // 筛选接口会过滤掉片单/广告条目，单页可能不足 25 条，以返回为空判断到底
+  const pageHasMore = useCallback(
+    (list: DoubanItem[]) =>
+      mode === 'filter' ? list.length > 0 : list.length === PAGE_SIZE,
+    [mode]
+  );
+
   // 防抖的数据加载函数
   const loadInitialData = useCallback(async () => {
+    const requestId = ++requestIdRef.current;
     try {
       setLoading(true);
-      const data = await getDoubanCategories(getRequestParams(0));
+      setError(null);
+      const data = await fetchPage(0);
+      if (requestId !== requestIdRef.current) return;
 
       if (data.code === 200) {
         setDoubanData(data.list);
-        setHasMore(data.list.length === 25);
-        setLoading(false);
+        setHasMore(pageHasMore(data.list));
       } else {
         throw new Error(data.message || '获取数据失败');
       }
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error(err);
+      setDoubanData([]);
+      setHasMore(false);
+      setError('加载失败，请稍后重试或在设置中开启豆瓣代理');
+    } finally {
+      if (requestId === requestIdRef.current) setLoading(false);
     }
-  }, [type, primarySelection, secondarySelection, getRequestParams]);
+  }, [fetchPage, pageHasMore]);
 
   // 只在选择器准备好后才加载数据
   useEffect(() => {
@@ -161,36 +264,42 @@ function DoubanPageClient() {
     type,
     primarySelection,
     secondarySelection,
+    filterKey,
     loadInitialData,
   ]);
 
   // 单独处理 currentPage 变化（加载更多）
   useEffect(() => {
     if (currentPage > 0) {
+      const requestId = requestIdRef.current;
       const fetchMoreData = async () => {
         try {
           setIsLoadingMore(true);
 
-          const data = await getDoubanCategories(
-            getRequestParams(currentPage * 25)
-          );
+          const data = await fetchPage(currentPage * PAGE_SIZE);
+          if (requestId !== requestIdRef.current) return;
 
           if (data.code === 200) {
-            setDoubanData((prev) => [...prev, ...data.list]);
-            setHasMore(data.list.length === 25);
+            setDoubanData((prev) => {
+              // 豆瓣分页偶有重复条目，按 id 去重
+              const seen = new Set(prev.map((i) => i.id));
+              return [...prev, ...data.list.filter((i) => !seen.has(i.id))];
+            });
+            setHasMore(pageHasMore(data.list));
           } else {
             throw new Error(data.message || '获取数据失败');
           }
         } catch (err) {
           console.error(err);
+          if (requestId === requestIdRef.current) setHasMore(false);
         } finally {
-          setIsLoadingMore(false);
+          if (requestId === requestIdRef.current) setIsLoadingMore(false);
         }
       };
 
       fetchMoreData();
     }
-  }, [currentPage, type, primarySelection, secondarySelection]);
+  }, [currentPage, type, primarySelection, secondarySelection, filterKey]);
 
   // 设置滚动监听
   useEffect(() => {
@@ -276,14 +385,28 @@ function DoubanPageClient() {
           </div>
 
           {/* 选择器组件 */}
-          <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm'>
-            <DoubanSelector
-              type={type as 'movie' | 'tv' | 'show'}
-              primarySelection={primarySelection}
-              secondarySelection={secondarySelection}
-              onPrimaryChange={handlePrimaryChange}
-              onSecondaryChange={handleSecondaryChange}
+          <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm space-y-4 sm:space-y-5'>
+            <CapsuleSwitch
+              key={type}
+              options={MODE_OPTIONS}
+              active={mode}
+              onChange={handleModeChange}
             />
+            {mode === 'filter' ? (
+              <DoubanFilterPanel
+                type={mediaType}
+                filters={filters}
+                onChange={handleFiltersChange}
+              />
+            ) : (
+              <DoubanSelector
+                type={mediaType}
+                primarySelection={primarySelection}
+                secondarySelection={secondarySelection}
+                onPrimaryChange={handlePrimaryChange}
+                onSecondaryChange={handleSecondaryChange}
+              />
+            )}
           </div>
         </div>
 
@@ -336,9 +459,11 @@ function DoubanPageClient() {
             <div className='text-center text-gray-500 py-8'>已加载全部内容</div>
           )}
 
-          {/* 空状态 */}
+          {/* 空状态 / 错误 */}
           {!loading && doubanData.length === 0 && (
-            <div className='text-center text-gray-500 py-8'>暂无相关内容</div>
+            <div className='text-center text-gray-500 py-8'>
+              {error || '暂无相关内容'}
+            </div>
           )}
         </div>
       </div>
