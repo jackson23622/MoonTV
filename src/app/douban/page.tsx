@@ -20,6 +20,8 @@ import DoubanCardSkeleton from '@/components/DoubanCardSkeleton';
 import DoubanFilterPanel from '@/components/DoubanFilterPanel';
 import DoubanSelector from '@/components/DoubanSelector';
 import PageLayout from '@/components/PageLayout';
+import Spinner from '@/components/Spinner';
+import { GUTTER, POSTER_GRID } from '@/components/ui';
 import VideoCard from '@/components/VideoCard';
 
 const PAGE_SIZE = 25;
@@ -357,7 +359,7 @@ function DoubanPageClient() {
 
   const getPageTitle = () => {
     // 根据 type 生成标题
-    return type === 'movie' ? '电影' : type === 'tv' ? '电视剧' : '综艺';
+    return type === 'movie' ? '电影' : type === 'tv' ? '剧集' : '综艺';
   };
 
   const getActivePath = () => {
@@ -371,21 +373,13 @@ function DoubanPageClient() {
 
   return (
     <PageLayout activePath={getActivePath()}>
-      <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible'>
+      <div className={`pt-4 sm:pt-8 ${GUTTER}`}>
         {/* 页面标题和选择器 */}
-        <div className='mb-6 sm:mb-8 space-y-4 sm:space-y-6'>
-          {/* 页面标题 */}
-          <div>
-            <h1 className='text-2xl sm:text-3xl font-bold text-gray-800 mb-1 sm:mb-2 dark:text-gray-200'>
-              {getPageTitle()}
-            </h1>
-            <p className='text-sm sm:text-base text-gray-600 dark:text-gray-400'>
-              来自豆瓣的精选内容
-            </p>
-          </div>
+        <div className='mb-6 space-y-5 sm:mb-8'>
+          <h1 className='atv-large-title'>{getPageTitle()}</h1>
 
           {/* 选择器组件 */}
-          <div className='bg-white/60 dark:bg-gray-800/40 rounded-2xl p-4 sm:p-6 border border-gray-200/30 dark:border-gray-700/30 backdrop-blur-sm space-y-4 sm:space-y-5'>
+          <div className='space-y-4 sm:space-y-5'>
             <CapsuleSwitch
               key={type}
               options={MODE_OPTIONS}
@@ -411,15 +405,15 @@ function DoubanPageClient() {
         </div>
 
         {/* 内容展示区域 */}
-        <div className='max-w-[95%] mx-auto mt-8 overflow-visible'>
+        <div className='mt-2 border-t border-atv-separator/60 pt-6 sm:pt-8'>
           {/* 内容网格 */}
-          <div className='grid grid-cols-3 gap-x-2 gap-y-12 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fit,minmax(160px,1fr))] sm:gap-x-8 sm:gap-y-20'>
+          <div className={POSTER_GRID}>
             {loading || !selectorsReady
               ? // 显示骨架屏
                 skeletonData.map((index) => <DoubanCardSkeleton key={index} />)
               : // 显示实际数据
                 doubanData.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className='w-full'>
+                  <div key={`${item.id}-${index}`} className='w-full'>
                     <VideoCard
                       from='douban'
                       title={item.title}
@@ -443,26 +437,23 @@ function DoubanPageClient() {
                   ).current = el;
                 }
               }}
-              className='flex justify-center mt-12 py-8'
+              className='mt-10 flex justify-center py-8'
             >
-              {isLoadingMore && (
-                <div className='flex items-center gap-2'>
-                  <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-green-500'></div>
-                  <span className='text-gray-600'>加载中...</span>
-                </div>
-              )}
+              {isLoadingMore && <Spinner size={24} />}
             </div>
           )}
 
           {/* 没有更多数据提示 */}
           {!hasMore && doubanData.length > 0 && (
-            <div className='text-center text-gray-500 py-8'>已加载全部内容</div>
+            <div className='py-10 text-center text-[13px] text-atv-tertiary'>
+              已经到底了
+            </div>
           )}
 
           {/* 空状态 / 错误 */}
           {!loading && doubanData.length === 0 && (
-            <div className='text-center text-gray-500 py-8'>
-              {error || '暂无相关内容'}
+            <div className='py-16 text-center text-atv-secondary'>
+              {error || '没有符合条件的内容，换个条件试试。'}
             </div>
           )}
         </div>

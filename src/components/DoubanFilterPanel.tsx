@@ -47,12 +47,12 @@ const FilterRow: React.FC<RowProps> = ({ label, options, value, onSelect }) => {
 
   return (
     <div className='flex items-start gap-2 sm:gap-3'>
-      <span className='shrink-0 pt-1 sm:pt-1.5 text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 w-9 sm:w-12'>
+      <span className='w-9 shrink-0 pt-1.5 text-[13px] font-medium text-atv-secondary sm:w-12 sm:text-sm'>
         {label}
       </span>
       <div
         ref={scrollRef}
-        className='flex-1 min-w-0 overflow-x-auto scrollbar-hide sm:overflow-visible'
+        className='scrollbar-hide -mr-4 min-w-0 flex-1 overflow-x-auto sm:mr-0 sm:overflow-visible'
       >
         <div className='flex gap-1.5 sm:gap-2 sm:flex-wrap w-max sm:w-auto pr-4 sm:pr-0'>
           {options.map((opt) => {
@@ -62,10 +62,11 @@ const FilterRow: React.FC<RowProps> = ({ label, options, value, onSelect }) => {
                 key={opt.value}
                 ref={active ? activeRef : undefined}
                 onClick={() => !active && onSelect(opt.value)}
-                className={`whitespace-nowrap rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs sm:text-sm transition-colors duration-150 ${
+                aria-pressed={active}
+                className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors duration-150 sm:text-sm ${
                   active
-                    ? 'bg-green-500 text-white font-medium shadow-sm cursor-default'
-                    : 'text-gray-700 hover:bg-gray-200/80 dark:text-gray-300 dark:hover:bg-gray-700/70'
+                    ? 'cursor-default bg-atv-label text-atv-bg'
+                    : 'bg-atv-fill/[0.14] text-atv-label/85 hover:bg-atv-fill/25 hover:text-atv-label'
                 }`}
               >
                 {opt.label}
@@ -130,7 +131,7 @@ const DoubanFilterPanel: React.FC<DoubanFilterPanelProps> = ({
       />
 
       {!isDefaultFilters(filters) && (
-        <div className='flex items-center justify-between pt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400'>
+        <div className='flex items-center justify-between pt-1 text-[13px] text-atv-secondary sm:text-sm'>
           <span className='truncate'>
             {summary.length > 0 ? `已选：${summary.join(' · ')}` : '已调整排序'}
           </span>
@@ -144,7 +145,7 @@ const DoubanFilterPanel: React.FC<DoubanFilterPanelProps> = ({
                 sort: 'T',
               })
             }
-            className='shrink-0 ml-3 text-green-600 hover:text-green-700 dark:text-green-400'
+            className='ml-3 shrink-0 font-medium text-atv-accent hover:opacity-80'
           >
             重置
           </button>

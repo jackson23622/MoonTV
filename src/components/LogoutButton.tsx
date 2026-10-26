@@ -5,6 +5,8 @@
 import { LogOut } from 'lucide-react';
 import { useState } from 'react';
 
+import { ICON_BTN } from './ui';
+
 export const LogoutButton: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
@@ -29,10 +31,11 @@ export const LogoutButton: React.FC = () => {
   return (
     <button
       onClick={handleLogout}
-      className='w-10 h-10 p-2 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200/50 dark:text-gray-300 dark:hover:bg-gray-700/50 transition-colors'
-      aria-label='Logout'
+      className={ICON_BTN}
+      aria-label='退出登录'
+      title='退出登录'
     >
-      <LogOut className='w-full h-full' />
+      <LogOut className='h-[18px] w-[18px]' />
     </button>
   );
 };

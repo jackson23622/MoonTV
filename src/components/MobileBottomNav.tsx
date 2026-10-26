@@ -1,90 +1,53 @@
 'use client';
 
-import { Clover, Film, Home, Search, Tv } from 'lucide-react';
+import { Clapperboard, House, Search, Sparkles, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { isNavActive } from './ui';
+
 interface MobileBottomNavProps {
-  /**
-   * 主动指定当前激活的路径。当未提供时，自动使用 usePathname() 获取的路径。
-   */
+  /** 主动指定当前激活的路径。未提供时使用 usePathname() */
   activePath?: string;
 }
 
+const ITEMS = [
+  { icon: House, label: '首页', href: '/' },
+  { icon: Clapperboard, label: '电影', href: '/douban?type=movie' },
+  { icon: Tv, label: '剧集', href: '/douban?type=tv' },
+  { icon: Sparkles, label: '综艺', href: '/douban?type=show' },
+  { icon: Search, label: '搜索', href: '/search' },
+];
+
+/** 手机端底部标签栏（iOS 样式） */
 const MobileBottomNav = ({ activePath }: MobileBottomNavProps) => {
   const pathname = usePathname();
-
-  // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
-  const currentActive = activePath ?? pathname;
-
-  const navItems = [
-    { icon: Home, label: '首页', href: '/' },
-    { icon: Search, label: '搜索', href: '/search' },
-    {
-      icon: Film,
-      label: '电影',
-      href: '/douban?type=movie',
-    },
-    {
-      icon: Tv,
-      label: '剧集',
-      href: '/douban?type=tv',
-    },
-    {
-      icon: Clover,
-      label: '综艺',
-      href: '/douban?type=show',
-    },
-  ];
-
-  const isActive = (href: string) => {
-    const typeMatch = href.match(/type=([^&]+)/)?.[1];
-
-    // 解码URL以进行正确的比较
-    const decodedActive = decodeURIComponent(currentActive);
-    const decodedItemHref = decodeURIComponent(href);
-
-    return (
-      decodedActive === decodedItemHref ||
-      (decodedActive.startsWith('/douban') &&
-        decodedActive.includes(`type=${typeMatch}`))
-    );
-  };
+  const current = activePath ?? pathname;
 
   return (
     <nav
-      className='md:hidden fixed left-0 right-0 z-[600] bg-white/90 backdrop-blur-xl border-t border-gray-200/50 overflow-hidden dark:bg-gray-900/80 dark:border-gray-700/50'
-      style={{
-        /* 紧贴视口底部，同时在内部留出安全区高度 */
-        bottom: 0,
-        paddingBottom: 'env(safe-area-inset-bottom)',
-      }}
+      className='atv-material fixed inset-x-0 bottom-0 z-[700] border-t border-atv-separator/60 md:hidden'
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      aria-label='主导航'
     >
-      <ul className='flex items-center'>
-        {navItems.map((item) => {
-          const active = isActive(item.href);
+      <ul className='flex h-[52px] items-stretch'>
+        {ITEMS.map((item) => {
+          const active = isNavActive(item.href, current);
+          const Icon = item.icon;
           return (
-            <li key={item.href} className='flex-shrink-0 w-1/5'>
+            <li key={item.href} className='flex-1'>
               <Link
                 href={item.href}
-                className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
+                aria-current={active ? 'page' : undefined}
+                className={`flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
+                  active ? 'text-atv-label' : 'text-atv-tertiary'
+                }`}
               >
-                <item.icon
-                  className={`h-6 w-6 ${
-                    active
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-gray-500 dark:text-gray-400'
-                  }`}
+                <Icon
+                  className='h-[22px] w-[22px]'
+                  strokeWidth={active ? 2.2 : 1.8}
                 />
-                <span
-                  className={
-                    active
-                      ? 'text-green-600 dark:text-green-400'
-                      : 'text-gray-600 dark:text-gray-300'
-                  }
-                >
-                  {item.label}
-                </span>
+                {item.label}
               </Link>
             </li>
           );

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { CheckCircle, Heart, Link, PlayCircleIcon } from 'lucide-react';
+import { ExternalLink, Heart, Play, X } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -273,21 +273,70 @@ export default function VideoCard({
     return configs[from] || configs.search;
   }, [from, isAggregate, actualDoubanId, rate]);
 
+  // 卡片下方的次要信息
+  const meta = (() => {
+    if (from === 'douban') {
+      return [rate ? `★ ${rate}` : '', actualYear || '']
+        .filter(Boolean)
+        .join('  ');
+    }
+    const year = actualYear && actualYear !== 'unknown' ? actualYear : '';
+    if (from === 'playrecord' && currentEpisode && (actualEpisodes ?? 0) > 1) {
+      return [`看到第 ${currentEpisode} 集`, source_name]
+        .filter(Boolean)
+        .join(' · ');
+    }
+    if (isAggregate) {
+      const n = items?.length || 0;
+      return [year, n > 1 ? `${n} 个片源` : source_name]
+        .filter(Boolean)
+        .join(' · ');
+    }
+    return [year, source_name].filter(Boolean).join(' · ');
+  })();
+
+  const episodeBadge =
+    actualEpisodes && actualEpisodes > 1
+      ? currentEpisode
+        ? `${currentEpisode}/${actualEpisodes}`
+        : `${actualEpisodes} 集`
+      : '';
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  };
+
+  const actionBtn =
+    'atv-material-dark flex h-8 w-8 items-center justify-center rounded-full text-white transition-transform duration-200 hover:scale-110';
+
   return (
     <div
-      className='group relative w-full rounded-lg bg-transparent cursor-pointer transition-all duration-300 ease-in-out hover:scale-[1.05] hover:z-[500]'
+      role='link'
+      tabIndex={0}
+      aria-label={actualTitle}
+      className='group relative w-full cursor-pointer select-none rounded-xl focus-visible:outline-none'
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
     >
-      {/* 海报容器 */}
-      <div className='relative aspect-[2/3] overflow-hidden rounded-lg'>
-        {/* 骨架屏 */}
-        {!isLoading && <ImagePlaceholder aspectRatio='aspect-[2/3]' />}
-        {/* 图片 */}
+      {/* 海报：悬停 / 焦点时浮起（tvOS 焦点效果） */}
+      <div className='atv-lift relative aspect-[2/3] overflow-hidden rounded-xl bg-atv-elevated shadow-card ring-1 ring-black/5 group-focus-visible:ring-2 group-focus-visible:ring-atv-accent dark:ring-white/[0.06]'>
+        {!isLoading && (
+          <div className='absolute inset-0'>
+            <ImagePlaceholder aspectRatio='h-full' />
+          </div>
+        )}
         <Image
           src={posterSrc}
           alt={actualTitle}
           fill
-          className='object-cover'
+          sizes='(max-width: 640px) 33vw, 200px'
+          className={`object-cover transition-opacity duration-500 ${
+            isLoading ? 'opacity-100' : 'opacity-0'
+          }`}
           referrerPolicy='no-referrer'
           onLoadingComplete={() => setIsLoading(true)}
           onError={() => {
@@ -296,103 +345,100 @@ export default function VideoCard({
           }}
         />
 
-        {/* 悬浮遮罩 */}
-        <div className='absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 transition-opacity duration-300 ease-in-out group-hover:opacity-100' />
+        {/* 顶部高光：模拟 tvOS 海报的玻璃反光 */}
+        <div className='pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.08] via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-visible:opacity-100' />
 
-        {/* 播放按钮 */}
+        {/* 底部渐变：承载进度条 */}
+        {config.showProgress && progress > 0 && (
+          <div className='pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent' />
+        )}
+
+        {/* 集数 */}
+        {episodeBadge && (
+          <span className='atv-material-dark absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-4 text-white'>
+            {episodeBadge}
+          </span>
+        )}
+
+        {/* 播放提示 */}
         {config.showPlayButton && (
-          <div className='absolute inset-0 flex items-center justify-center opacity-0 transition-all duration-300 ease-in-out delay-75 group-hover:opacity-100 group-hover:scale-100'>
-            <PlayCircleIcon
-              size={50}
-              strokeWidth={0.8}
-              className='text-white fill-transparent transition-all duration-300 ease-out hover:fill-green-500 hover:scale-[1.1]'
-            />
+          <div className='pointer-events-none absolute inset-0 hidden items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:flex'>
+            <span className='atv-material-dark flex h-12 w-12 items-center justify-center rounded-full'>
+              <Play className='ml-0.5 h-5 w-5 fill-white text-white' />
+            </span>
           </div>
         )}
 
         {/* 操作按钮 */}
-        {(config.showHeart || config.showCheckCircle) && (
-          <div className='absolute bottom-3 right-3 flex gap-3 opacity-0 translate-y-2 transition-all duration-300 ease-in-out group-hover:opacity-100 group-hover:translate-y-0'>
+        {(config.showHeart ||
+          config.showCheckCircle ||
+          config.showDoubanLink) && (
+          <div className='absolute right-2 top-2 flex gap-1.5 opacity-0 transition-opacity duration-200 group-focus-within:opacity-100 group-hover:opacity-100'>
+            {config.showDoubanLink &&
+              actualDoubanId &&
+              actualDoubanId !== 'undefined' && (
+                <a
+                  href={`https://movie.douban.com/subject/${actualDoubanId}`}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  onClick={(e) => e.stopPropagation()}
+                  className={actionBtn}
+                  aria-label='在豆瓣查看'
+                  title='在豆瓣查看'
+                >
+                  <ExternalLink className='h-4 w-4' />
+                </a>
+              )}
             {config.showCheckCircle && (
-              <CheckCircle
+              <button
                 onClick={handleDeleteRecord}
-                size={20}
-                className='text-white transition-all duration-300 ease-out hover:stroke-green-500 hover:scale-[1.1]'
-              />
+                className={actionBtn}
+                aria-label='从继续观看中移除'
+                title='从继续观看中移除'
+              >
+                <X className='h-4 w-4' strokeWidth={2.5} />
+              </button>
             )}
             {config.showHeart && (
-              <Heart
+              <button
                 onClick={handleToggleFavorite}
-                size={20}
-                className={`transition-all duration-300 ease-out ${
-                  favorited
-                    ? 'fill-red-600 stroke-red-600'
-                    : 'fill-transparent stroke-white hover:stroke-red-400'
-                } hover:scale-[1.1]`}
-              />
+                className={actionBtn}
+                aria-label={favorited ? '取消收藏' : '收藏'}
+                title={favorited ? '取消收藏' : '收藏'}
+              >
+                <Heart
+                  className={`h-4 w-4 ${
+                    favorited ? 'fill-atv-red text-atv-red' : 'text-white'
+                  }`}
+                />
+              </button>
             )}
           </div>
         )}
 
-        {/* 徽章 */}
-        {config.showRating && rate && (
-          <div className='absolute top-2 right-2 bg-pink-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
-            {rate}
+        {/* 观看进度 */}
+        {config.showProgress && progress > 0 && (
+          <div className='absolute inset-x-2.5 bottom-2.5 h-1 overflow-hidden rounded-full bg-white/30'>
+            <div
+              className='h-full rounded-full bg-white'
+              style={{ width: `${Math.min(progress, 100)}%` }}
+            />
           </div>
-        )}
-
-        {actualEpisodes && actualEpisodes > 1 && (
-          <div className='absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
-            {currentEpisode
-              ? `${currentEpisode}/${actualEpisodes}`
-              : actualEpisodes}
-          </div>
-        )}
-
-        {/* 豆瓣链接 */}
-        {config.showDoubanLink && actualDoubanId && (
-          <a
-            href={`https://movie.douban.com/subject/${actualDoubanId}`}
-            target='_blank'
-            rel='noopener noreferrer'
-            onClick={(e) => e.stopPropagation()}
-            className='absolute top-2 left-2 opacity-0 -translate-x-2 transition-all duration-300 ease-in-out delay-100 group-hover:opacity-100 group-hover:translate-x-0'
-          >
-            <div className='bg-green-500 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center shadow-md hover:bg-green-600 hover:scale-[1.1] transition-all duration-300 ease-out'>
-              <Link size={16} />
-            </div>
-          </a>
         )}
       </div>
 
-      {/* 进度条 */}
-      {config.showProgress && progress !== undefined && (
-        <div className='mt-1 h-1 w-full bg-gray-200 rounded-full overflow-hidden'>
-          <div
-            className='h-full bg-green-500 transition-all duration-500 ease-out'
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      )}
-
-      {/* 标题与来源 */}
-      <div className='mt-2 text-center'>
-        <div className='relative'>
-          <span className='block text-sm font-semibold truncate text-gray-900 dark:text-gray-100 transition-colors duration-300 ease-in-out group-hover:text-green-600 dark:group-hover:text-green-400 peer'>
-            {actualTitle}
-          </span>
-          {/* 自定义 tooltip */}
-          <div className='absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-1 bg-gray-800 text-white text-xs rounded-md shadow-lg opacity-0 invisible peer-hover:opacity-100 peer-hover:visible transition-all duration-200 ease-out delay-100 whitespace-nowrap pointer-events-none'>
-            {actualTitle}
-            <div className='absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-800'></div>
-          </div>
-        </div>
-        {config.showSourceName && source_name && (
-          <span className='block text-xs text-gray-500 dark:text-gray-400 mt-1'>
-            <span className='inline-block border rounded px-2 py-0.5 border-gray-500/60 dark:border-gray-400/60 transition-all duration-300 ease-in-out group-hover:border-green-500/60 group-hover:text-green-600 dark:group-hover:text-green-400'>
-              {source_name}
-            </span>
-          </span>
+      {/* 标题与信息 */}
+      <div className='mt-2.5 px-0.5'>
+        <p
+          className='truncate text-[13px] font-medium leading-5 text-atv-label sm:text-sm'
+          title={actualTitle}
+        >
+          {actualTitle}
+        </p>
+        {meta && (
+          <p className='truncate text-xs leading-4 text-atv-secondary'>
+            {meta}
+          </p>
         )}
       </div>
     </div>

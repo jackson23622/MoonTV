@@ -62,14 +62,15 @@ const CapsuleSwitch: React.FC<CapsuleSwitchProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative inline-flex bg-gray-300/80 rounded-full p-1 dark:bg-gray-700 ${
+      role='tablist'
+      className={`relative inline-flex rounded-[9px] bg-atv-fill/20 p-0.5 ${
         className || ''
       }`}
     >
       {/* 滑动的白色背景指示器 */}
       {indicatorStyle.width > 0 && (
         <div
-          className='absolute top-1 bottom-1 bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
+          className='absolute bottom-0.5 top-0.5 rounded-[7px] bg-atv-thumb shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] transition-all duration-300 ease-apple'
           style={{
             left: `${indicatorStyle.left}px`,
             width: `${indicatorStyle.width}px`,
@@ -86,10 +87,12 @@ const CapsuleSwitch: React.FC<CapsuleSwitchProps> = ({
               buttonRefs.current[index] = el;
             }}
             onClick={() => onChange(opt.value)}
-            className={`relative z-10 w-16 px-3 py-1 text-xs sm:w-20 sm:py-2 sm:text-sm rounded-full font-medium transition-all duration-200 cursor-pointer ${
+            role='tab'
+            aria-selected={isActive}
+            className={`relative z-10 min-w-[4.5rem] rounded-[7px] px-4 py-1.5 text-[13px] font-semibold transition-colors duration-200 sm:min-w-[5.5rem] sm:text-sm ${
               isActive
-                ? 'text-gray-900 dark:text-gray-100'
-                : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100'
+                ? 'text-atv-label'
+                : 'text-atv-label/70 hover:text-atv-label'
             }`}
           >
             {opt.label}

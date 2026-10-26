@@ -91,15 +91,23 @@ function LoginPageClient() {
   };
 
   return (
-    <div className='relative min-h-screen flex items-center justify-center px-4 overflow-hidden'>
-      <div className='absolute top-4 right-4'>
+    <div className='relative flex min-h-screen items-center justify-center overflow-hidden px-6'>
+      {/* 背景：极淡的光晕，暗示影院银幕 */}
+      <div
+        aria-hidden
+        className='pointer-events-none absolute left-1/2 top-[-20%] h-[70vh] w-[120vw] -translate-x-1/2 rounded-[50%] bg-atv-accent/[0.07] blur-3xl'
+      />
+      <div className='absolute right-4 top-[max(1rem,env(safe-area-inset-top))]'>
         <ThemeToggle />
       </div>
-      <div className='relative z-10 w-full max-w-md rounded-3xl bg-gradient-to-b from-white/90 via-white/70 to-white/40 dark:from-zinc-900/90 dark:via-zinc-900/70 dark:to-zinc-900/40 backdrop-blur-xl shadow-2xl p-10 dark:border dark:border-zinc-800'>
-        <h1 className='text-green-600 tracking-tight text-center text-3xl font-extrabold mb-8 bg-clip-text drop-shadow-sm'>
+      <div className='relative z-10 w-full max-w-sm'>
+        <h1 className='text-center text-[2.5rem] font-bold leading-tight tracking-[-0.03em] text-atv-label'>
           {siteName}
         </h1>
-        <form onSubmit={handleSubmit} className='space-y-8'>
+        <p className='mb-10 mt-2 text-center text-[15px] text-atv-secondary'>
+          {shouldAskUsername ? '登录以继续观看' : '输入访问密码以继续'}
+        </p>
+        <form onSubmit={handleSubmit} className='space-y-3'>
           {shouldAskUsername && (
             <div>
               <label htmlFor='username' className='sr-only'>
@@ -109,8 +117,8 @@ function LoginPageClient() {
                 id='username'
                 type='text'
                 autoComplete='username'
-                className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-green-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
-                placeholder='输入用户名'
+                className='atv-input h-12 !text-[17px]'
+                placeholder='用户名'
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -125,25 +133,27 @@ function LoginPageClient() {
               id='password'
               type='password'
               autoComplete='current-password'
-              className='block w-full rounded-lg border-0 py-3 px-4 text-gray-900 dark:text-gray-100 shadow-sm ring-1 ring-white/60 dark:ring-white/20 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:ring-2 focus:ring-green-500 focus:outline-none sm:text-base bg-white/60 dark:bg-zinc-800/60 backdrop-blur'
-              placeholder='输入访问密码'
+              className='atv-input h-12 !text-[17px]'
+              placeholder={shouldAskUsername ? '密码' : '访问密码'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 
           {error && (
-            <p className='text-sm text-red-600 dark:text-red-400'>{error}</p>
+            <p role='alert' className='px-1 text-[13px] text-atv-red'>
+              {error}
+            </p>
           )}
 
           {/* 登录 / 注册按钮 */}
           {shouldAskUsername && enableRegister ? (
-            <div className='flex gap-4'>
+            <div className='flex gap-3 pt-5'>
               <button
                 type='button'
                 onClick={handleRegister}
                 disabled={!password || !username || loading}
-                className='flex-1 inline-flex justify-center rounded-lg bg-blue-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50'
+                className='atv-btn-secondary h-12 flex-1 !rounded-xl text-[17px] disabled:cursor-not-allowed disabled:opacity-40'
               >
                 {loading ? '注册中...' : '注册'}
               </button>
@@ -152,7 +162,7 @@ function LoginPageClient() {
                 disabled={
                   !password || loading || (shouldAskUsername && !username)
                 }
-                className='flex-1 inline-flex justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+                className='atv-btn-primary h-12 flex-1 !rounded-xl text-[17px]'
               >
                 {loading ? '登录中...' : '登录'}
               </button>
@@ -163,7 +173,7 @@ function LoginPageClient() {
               disabled={
                 !password || loading || (shouldAskUsername && !username)
               }
-              className='inline-flex w-full justify-center rounded-lg bg-green-600 py-3 text-base font-semibold text-white shadow-lg transition-all duration-200 hover:from-green-600 hover:to-blue-600 disabled:cursor-not-allowed disabled:opacity-50'
+              className='atv-btn-primary !mt-8 h-12 w-full !rounded-xl text-[17px]'
             >
               {loading ? '登录中...' : '登录'}
             </button>

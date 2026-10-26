@@ -6,6 +6,8 @@ import { Settings, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { ICON_BTN } from './ui';
+
 export const SettingsButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [defaultAggregateSearch, setDefaultAggregateSearch] = useState(true);
@@ -160,21 +162,26 @@ export const SettingsButton: React.FC = () => {
     <>
       {/* 背景遮罩 */}
       <div
-        className='fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000]'
+        className='fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm'
         onClick={handleClosePanel}
       />
 
       {/* 设置面板 */}
-      <div className='fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-gray-900 rounded-xl shadow-xl z-[1001] p-6'>
+      <div
+        role='dialog'
+        aria-modal='true'
+        aria-label='本地设置'
+        className='fixed left-1/2 top-1/2 z-[1001] max-h-[85vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-atv-elevated p-5 shadow-2xl ring-1 ring-black/5 dark:ring-white/10'
+      >
         {/* 标题栏 */}
-        <div className='flex items-center justify-between mb-6'>
+        <div className='mb-5 flex items-center justify-between'>
           <div className='flex items-center gap-3'>
-            <h3 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+            <h3 className='text-[20px] font-semibold tracking-tight text-atv-label'>
               本地设置
             </h3>
             <button
               onClick={handleResetSettings}
-              className='px-2 py-1 text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 border border-red-200 hover:border-red-300 dark:border-red-800 dark:hover:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors'
+              className='rounded-full px-2.5 py-1 text-xs font-medium text-atv-red transition-colors hover:bg-atv-red/10'
               title='重置为默认设置'
             >
               重置
@@ -182,22 +189,20 @@ export const SettingsButton: React.FC = () => {
           </div>
           <button
             onClick={handleClosePanel}
-            className='w-8 h-8 p-1 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors'
-            aria-label='Close'
+            className='flex h-8 w-8 items-center justify-center rounded-full bg-atv-fill/20 text-atv-secondary transition-colors hover:bg-atv-fill/30'
+            aria-label='关闭'
           >
-            <X className='w-full h-full' />
+            <X className='h-4 w-4' strokeWidth={2.5} />
           </button>
         </div>
 
         {/* 设置项 */}
-        <div className='space-y-6'>
+        <div className='space-y-5'>
           {/* 默认聚合搜索结果 */}
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between gap-4'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                默认聚合搜索结果
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>默认聚合搜索结果</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 搜索时默认按标题和年份聚合显示结果
               </p>
             </div>
@@ -209,19 +214,17 @@ export const SettingsButton: React.FC = () => {
                   checked={defaultAggregateSearch}
                   onChange={(e) => handleAggregateToggle(e.target.checked)}
                 />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+                <div className='h-[31px] w-[51px] rounded-full bg-atv-fill/30 transition-colors duration-200 peer-checked:bg-atv-green peer-focus-visible:ring-2 peer-focus-visible:ring-atv-accent'></div>
+                <div className='absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 peer-checked:translate-x-5'></div>
               </div>
             </label>
           </div>
 
           {/* 优选和测速 */}
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between gap-4'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用优选和测速
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>启用优选和测速</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 如出现播放器劫持问题可关闭
               </p>
             </div>
@@ -233,22 +236,20 @@ export const SettingsButton: React.FC = () => {
                   checked={enableOptimization}
                   onChange={(e) => handleOptimizationToggle(e.target.checked)}
                 />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+                <div className='h-[31px] w-[51px] rounded-full bg-atv-fill/30 transition-colors duration-200 peer-checked:bg-atv-green peer-focus-visible:ring-2 peer-focus-visible:ring-atv-accent'></div>
+                <div className='absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 peer-checked:translate-x-5'></div>
               </div>
             </label>
           </div>
 
           {/* 分割线 */}
-          <div className='border-t border-gray-200 dark:border-gray-700'></div>
+          <div className='border-t border-atv-separator/70'></div>
 
           {/* 豆瓣代理开关 */}
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between gap-4'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用豆瓣代理
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>启用豆瓣代理</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 启用后，豆瓣数据将通过代理服务器获取
               </p>
             </div>
@@ -260,28 +261,24 @@ export const SettingsButton: React.FC = () => {
                   checked={enableDoubanProxy}
                   onChange={(e) => handleDoubanProxyToggle(e.target.checked)}
                 />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+                <div className='h-[31px] w-[51px] rounded-full bg-atv-fill/30 transition-colors duration-200 peer-checked:bg-atv-green peer-focus-visible:ring-2 peer-focus-visible:ring-atv-accent'></div>
+                <div className='absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 peer-checked:translate-x-5'></div>
               </div>
             </label>
           </div>
 
           {/* 豆瓣代理地址设置 */}
-          <div className='space-y-3'>
+          <div className='space-y-2'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                豆瓣代理地址
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>豆瓣代理地址</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 仅在启用豆瓣代理时生效，留空则使用服务器 API
               </p>
             </div>
             <input
               type='text'
-              className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                enableDoubanProxy
-                  ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
-                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 placeholder-gray-400 dark:placeholder-gray-600 cursor-not-allowed'
+              className={`atv-input !py-2.5 !text-sm ${
+                enableDoubanProxy ? '' : 'cursor-not-allowed opacity-50'
               }`}
               placeholder='例如: https://proxy.example.com/fetch?url='
               value={doubanProxyUrl}
@@ -291,15 +288,13 @@ export const SettingsButton: React.FC = () => {
           </div>
 
           {/* 分割线 */}
-          <div className='border-t border-gray-200 dark:border-gray-700'></div>
+          <div className='border-t border-atv-separator/70'></div>
 
           {/* 图片代理开关 */}
-          <div className='flex items-center justify-between'>
+          <div className='flex items-center justify-between gap-4'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用图片代理
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>启用图片代理</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 启用后，所有图片加载将通过代理服务器
               </p>
             </div>
@@ -311,28 +306,24 @@ export const SettingsButton: React.FC = () => {
                   checked={enableImageProxy}
                   onChange={(e) => handleImageProxyToggle(e.target.checked)}
                 />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+                <div className='h-[31px] w-[51px] rounded-full bg-atv-fill/30 transition-colors duration-200 peer-checked:bg-atv-green peer-focus-visible:ring-2 peer-focus-visible:ring-atv-accent'></div>
+                <div className='absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 peer-checked:translate-x-5'></div>
               </div>
             </label>
           </div>
 
           {/* 图片代理地址设置 */}
-          <div className='space-y-3'>
+          <div className='space-y-2'>
             <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                图片代理地址
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+              <h4 className='text-[15px] text-atv-label'>图片代理地址</h4>
+              <p className='mt-0.5 text-xs text-atv-secondary'>
                 仅在启用图片代理时生效
               </p>
             </div>
             <input
               type='text'
-              className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors ${
-                enableImageProxy
-                  ? 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400'
-                  : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 placeholder-gray-400 dark:placeholder-gray-600 cursor-not-allowed'
+              className={`atv-input !py-2.5 !text-sm ${
+                enableImageProxy ? '' : 'cursor-not-allowed opacity-50'
               }`}
               placeholder='例如: https://imageproxy.example.com/?url='
               value={imageProxyUrl}
@@ -343,8 +334,8 @@ export const SettingsButton: React.FC = () => {
         </div>
 
         {/* 底部说明 */}
-        <div className='mt-6 pt-4 border-t border-gray-200 dark:border-gray-700'>
-          <p className='text-xs text-gray-500 dark:text-gray-400 text-center'>
+        <div className='mt-5 border-t border-atv-separator/70 pt-4'>
+          <p className='text-center text-xs text-atv-secondary'>
             这些设置保存在本地浏览器中
           </p>
         </div>
@@ -356,10 +347,11 @@ export const SettingsButton: React.FC = () => {
     <>
       <button
         onClick={handleSettingsClick}
-        className='w-10 h-10 p-2 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200/50 dark:text-gray-300 dark:hover:bg-gray-700/50 transition-colors'
-        aria-label='Settings'
+        className={ICON_BTN}
+        aria-label='设置'
+        title='设置'
       >
-        <Settings className='w-full h-full' />
+        <Settings className='h-[18px] w-[18px]' />
       </button>
 
       {/* 使用 Portal 将设置面板渲染到 document.body */}

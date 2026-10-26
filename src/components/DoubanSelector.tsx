@@ -217,12 +217,13 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
     return (
       <div
         ref={containerRef}
-        className='relative inline-flex bg-gray-200/60 rounded-full p-0.5 sm:p-1 dark:bg-gray-700/60 backdrop-blur-sm'
+        role='tablist'
+        className='relative inline-flex rounded-[9px] bg-atv-fill/20 p-0.5'
       >
         {/* 滑动的白色背景指示器 */}
         {indicatorStyle.width > 0 && (
           <div
-            className='absolute top-0.5 bottom-0.5 sm:top-1 sm:bottom-1 bg-white dark:bg-gray-500 rounded-full shadow-sm transition-all duration-300 ease-out'
+            className='absolute bottom-0.5 top-0.5 rounded-[7px] bg-atv-thumb shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] transition-all duration-300 ease-apple'
             style={{
               left: `${indicatorStyle.left}px`,
               width: `${indicatorStyle.width}px`,
@@ -239,10 +240,12 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
                 buttonRefs.current[index] = el;
               }}
               onClick={() => onChange(option.value)}
-              className={`relative z-10 px-2 py-1 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full transition-all duration-200 whitespace-nowrap ${
+              role='tab'
+              aria-selected={isActive}
+              className={`relative z-10 whitespace-nowrap rounded-[7px] px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 sm:px-4 sm:text-sm ${
                 isActive
-                  ? 'text-gray-900 dark:text-gray-100 cursor-default'
-                  : 'text-gray-700 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 cursor-pointer'
+                  ? 'cursor-default text-atv-label'
+                  : 'cursor-pointer text-atv-label/70 hover:text-atv-label'
               }`}
             >
               {option.label}
@@ -260,10 +263,10 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
         <div className='space-y-3 sm:space-y-4'>
           {/* 一级选择器 */}
           <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
-            <span className='text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 min-w-[48px]'>
+            <span className='min-w-[48px] text-[13px] font-medium text-atv-secondary sm:text-sm'>
               分类
             </span>
-            <div className='overflow-x-auto'>
+            <div className='scrollbar-hide -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0'>
               {renderCapsuleSelector(
                 moviePrimaryOptions,
                 primarySelection || moviePrimaryOptions[0].value,
@@ -275,10 +278,10 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
 
           {/* 二级选择器 */}
           <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
-            <span className='text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 min-w-[48px]'>
+            <span className='min-w-[48px] text-[13px] font-medium text-atv-secondary sm:text-sm'>
               地区
             </span>
-            <div className='overflow-x-auto'>
+            <div className='scrollbar-hide -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0'>
               {renderCapsuleSelector(
                 movieSecondaryOptions,
                 secondarySelection || movieSecondaryOptions[0].value,
@@ -293,10 +296,10 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
       {/* 电视剧类型 - 只显示一级选择器 */}
       {type === 'tv' && (
         <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
-          <span className='text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 min-w-[48px]'>
+          <span className='min-w-[48px] text-[13px] font-medium text-atv-secondary sm:text-sm'>
             类型
           </span>
-          <div className='overflow-x-auto'>
+          <div className='scrollbar-hide -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0'>
             {renderCapsuleSelector(
               tvOptions,
               secondarySelection || tvOptions[0].value,
@@ -310,10 +313,10 @@ const DoubanSelector: React.FC<DoubanSelectorProps> = ({
       {/* 综艺类型 - 只显示一级选择器 */}
       {type === 'show' && (
         <div className='flex flex-col sm:flex-row sm:items-center gap-2'>
-          <span className='text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-400 min-w-[48px]'>
+          <span className='min-w-[48px] text-[13px] font-medium text-atv-secondary sm:text-sm'>
             类型
           </span>
-          <div className='overflow-x-auto'>
+          <div className='scrollbar-hide -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0'>
             {renderCapsuleSelector(
               showOptions,
               secondarySelection || showOptions[0].value,

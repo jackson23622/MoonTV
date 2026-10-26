@@ -10,7 +10,7 @@ import {
   subscribeToDataUpdates,
 } from '@/lib/db.client';
 
-import ScrollableRow from '@/components/ScrollableRow';
+import Shelf, { SHELF_ITEM, ShelfSkeleton } from '@/components/Shelf';
 import VideoCard from '@/components/VideoCard';
 
 interface ContinueWatchingProps {
@@ -86,69 +86,54 @@ export default function ContinueWatching({ className }: ContinueWatchingProps) {
   };
 
   return (
-    <section className={`mb-8 ${className || ''}`}>
-      <div className='mb-4 flex items-center justify-between'>
-        <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
-          继续观看
-        </h2>
-        {!loading && playRecords.length > 0 && (
-          <button
-            className='text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-            onClick={async () => {
-              await clearAllPlayRecords();
-              setPlayRecords([]);
-            }}
-          >
-            清空
-          </button>
-        )}
-      </div>
-      <ScrollableRow>
-        {loading
-          ? // 加载状态显示灰色占位数据
-            Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-              >
-                <div className='relative aspect-[2/3] w-full overflow-hidden rounded-lg bg-gray-200 animate-pulse dark:bg-gray-800'>
-                  <div className='absolute inset-0 bg-gray-300 dark:bg-gray-700'></div>
-                </div>
-                <div className='mt-2 h-4 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
-                <div className='mt-1 h-3 bg-gray-200 rounded animate-pulse dark:bg-gray-800'></div>
+    <div className={className}>
+      <Shelf
+        title='继续观看'
+        action={
+          !loading && playRecords.length > 0 ? (
+            <button
+              className='rounded-full px-3 py-1 text-sm text-atv-secondary transition-colors hover:bg-atv-fill/15 hover:text-atv-label'
+              onClick={async () => {
+                await clearAllPlayRecords();
+                setPlayRecords([]);
+              }}
+            >
+              清空
+            </button>
+          ) : null
+        }
+      >
+        {loading ? (
+          <ShelfSkeleton count={6} />
+        ) : (
+          playRecords.map((record) => {
+            const { source, id } = parseKey(record.key);
+            return (
+              <div key={record.key} className={SHELF_ITEM}>
+                <VideoCard
+                  id={id}
+                  title={record.title}
+                  poster={record.cover}
+                  year={record.year}
+                  source={source}
+                  source_name={record.source_name}
+                  progress={getProgress(record)}
+                  episodes={record.total_episodes}
+                  currentEpisode={record.index}
+                  query={record.search_title}
+                  from='playrecord'
+                  onDelete={() =>
+                    setPlayRecords((prev) =>
+                      prev.filter((r) => r.key !== record.key)
+                    )
+                  }
+                  type={record.total_episodes > 1 ? 'tv' : ''}
+                />
               </div>
-            ))
-          : // 显示真实数据
-            playRecords.map((record) => {
-              const { source, id } = parseKey(record.key);
-              return (
-                <div
-                  key={record.key}
-                  className='min-w-[96px] w-24 sm:min-w-[180px] sm:w-44'
-                >
-                  <VideoCard
-                    id={id}
-                    title={record.title}
-                    poster={record.cover}
-                    year={record.year}
-                    source={source}
-                    source_name={record.source_name}
-                    progress={getProgress(record)}
-                    episodes={record.total_episodes}
-                    currentEpisode={record.index}
-                    query={record.search_title}
-                    from='playrecord'
-                    onDelete={() =>
-                      setPlayRecords((prev) =>
-                        prev.filter((r) => r.key !== record.key)
-                      )
-                    }
-                    type={record.total_episodes > 1 ? 'tv' : ''}
-                  />
-                </div>
-              );
-            })}
-      </ScrollableRow>
-    </section>
+            );
+          })
+        )}
+      </Shelf>
+    </div>
   );
 }

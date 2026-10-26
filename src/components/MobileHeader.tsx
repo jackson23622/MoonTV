@@ -1,43 +1,70 @@
 'use client';
 
+import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-import { BackButton } from './BackButton';
 import { LogoutButton } from './LogoutButton';
 import { SettingsButton } from './SettingsButton';
 import { useSite } from './SiteProvider';
 import { ThemeToggle } from './ThemeToggle';
+import { ICON_BTN, useScrolled } from './ui';
 
 interface MobileHeaderProps {
   showBackButton?: boolean;
+  /** 浮在首页大图上：顶部透明且强制深色 */
+  overlay?: boolean;
 }
 
-const MobileHeader = ({ showBackButton = false }: MobileHeaderProps) => {
+/** 手机端顶部栏 */
+const MobileHeader = ({
+  showBackButton = false,
+  overlay = false,
+}: MobileHeaderProps) => {
+  const router = useRouter();
   const { siteName } = useSite();
+  const scrolled = useScrolled();
+  const transparent = overlay && !scrolled;
+
   return (
-    <header className='md:hidden relative w-full bg-white/70 backdrop-blur-xl border-b border-gray-200/50 shadow-sm dark:bg-gray-900/70 dark:border-gray-700/50'>
-      <div className='h-12 flex items-center justify-between px-4'>
-        {/* 左侧：返回按钮和设置按钮 */}
-        <div className='flex items-center gap-2'>
-          {showBackButton && <BackButton />}
+    <header
+      className={`fixed inset-x-0 top-0 z-[700] md:hidden transition-[background-color,border-color] duration-300 ${
+        transparent
+          ? 'dark border-b border-transparent'
+          : 'atv-material border-b border-atv-separator/60'
+      }`}
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      {/* 顶部柔和渐变：浮在大图上时保证文字可读，渐隐范围比导航栏高，避免出现分界线 */}
+      {transparent && (
+        <div
+          aria-hidden
+          className='pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-black/60 via-black/25 to-transparent'
+        />
+      )}
+      <div className='flex h-12 items-center justify-between px-3'>
+        <div className='flex min-w-0 items-center'>
+          {showBackButton && (
+            <button
+              onClick={() => router.back()}
+              className={`${ICON_BTN} -ml-1`}
+              aria-label='返回'
+            >
+              <ChevronLeft className='h-6 w-6' />
+            </button>
+          )}
+          <Link
+            href='/'
+            className='truncate px-1 text-[17px] font-semibold tracking-tight text-atv-label'
+          >
+            {siteName}
+          </Link>
+        </div>
+        <div className='flex items-center'>
           <SettingsButton />
-        </div>
-
-        {/* 右侧按钮 */}
-        <div className='flex items-center gap-2'>
-          <LogoutButton />
           <ThemeToggle />
+          <LogoutButton />
         </div>
-      </div>
-
-      {/* 中间：Logo（绝对居中） */}
-      <div className='absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2'>
-        <Link
-          href='/'
-          className='text-2xl font-bold text-green-600 tracking-tight hover:opacity-80 transition-opacity'
-        >
-          {siteName}
-        </Link>
       </div>
     </header>
   );

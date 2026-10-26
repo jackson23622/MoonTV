@@ -6,6 +6,8 @@ import { Moon, Sun } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useEffect, useState } from 'react';
 
+import { ICON_BTN } from './ui';
+
 export function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
   const { setTheme, resolvedTheme } = useTheme();
@@ -15,10 +17,10 @@ export function ThemeToggle() {
     if (!meta) {
       const meta = document.createElement('meta');
       meta.name = 'theme-color';
-      meta.content = theme === 'dark' ? '#0c111c' : '#f9fbfe';
+      meta.content = theme === 'dark' ? '#000000' : '#ffffff';
       document.head.appendChild(meta);
     } else {
-      meta.setAttribute('content', theme === 'dark' ? '#0c111c' : '#f9fbfe');
+      meta.setAttribute('content', theme === 'dark' ? '#000000' : '#ffffff');
     }
   };
 
@@ -29,7 +31,7 @@ export function ThemeToggle() {
 
   if (!mounted) {
     // 渲染一个占位符以避免布局偏移
-    return <div className='w-10 h-10' />;
+    return <div className='h-9 w-9' />;
   }
 
   const toggleTheme = () => {
@@ -49,13 +51,14 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className='w-10 h-10 p-2 rounded-full flex items-center justify-center text-gray-600 hover:bg-gray-200/50 dark:text-gray-300 dark:hover:bg-gray-700/50 transition-colors'
-      aria-label='Toggle theme'
+      className={ICON_BTN}
+      aria-label={resolvedTheme === 'dark' ? '切换到浅色' : '切换到深色'}
+      title={resolvedTheme === 'dark' ? '切换到浅色' : '切换到深色'}
     >
       {resolvedTheme === 'dark' ? (
-        <Sun className='w-full h-full' />
+        <Sun className='h-[18px] w-[18px]' />
       ) : (
-        <Moon className='w-full h-full' />
+        <Moon className='h-[18px] w-[18px]' />
       )}
     </button>
   );

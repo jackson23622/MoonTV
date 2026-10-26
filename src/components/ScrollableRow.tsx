@@ -1,169 +1,91 @@
+'use client';
+
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { GUTTER } from './ui';
 
 interface ScrollableRowProps {
   children: React.ReactNode;
-  scrollDistance?: number;
+  /** 子项之间的间距 class */
+  gap?: string;
 }
 
+/**
+ * 横向片架（Apple TV 样式）：左侧与页面边距对齐、右侧出血，
+ * 按页吸附滚动；桌面端悬停时两侧出现翻页按钮。
+ */
 export default function ScrollableRow({
   children,
-  scrollDistance = 1000,
+  gap = 'gap-3 sm:gap-4 lg:gap-5',
 }: ScrollableRowProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [showLeftScroll, setShowLeftScroll] = useState(false);
-  const [showRightScroll, setShowRightScroll] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
 
-  const checkScroll = () => {
-    if (containerRef.current) {
-      const { scrollWidth, clientWidth, scrollLeft } = containerRef.current;
-
-      // 计算是否需要左右滚动按钮
-      const threshold = 1; // 容差值，避免浮点误差
-      const canScrollRight =
-        scrollWidth - (scrollLeft + clientWidth) > threshold;
-      const canScrollLeft = scrollLeft > threshold;
-
-      setShowRightScroll(canScrollRight);
-      setShowLeftScroll(canScrollLeft);
-    }
-  };
-
-  useEffect(() => {
-    // 多次延迟检查，确保内容已完全渲染
-    checkScroll();
-
-    // 监听窗口大小变化
-    window.addEventListener('resize', checkScroll);
-
-    // 创建一个 ResizeObserver 来监听容器大小变化
-    const resizeObserver = new ResizeObserver(() => {
-      // 延迟执行检查
-      checkScroll();
-    });
-
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => {
-      window.removeEventListener('resize', checkScroll);
-      resizeObserver.disconnect();
-    };
-  }, [children]); // 依赖 children，当子组件变化时重新检查
-
-  // 添加一个额外的效果来监听子组件的变化
-  useEffect(() => {
-    if (containerRef.current) {
-      // 监听 DOM 变化
-      const observer = new MutationObserver(() => {
-        setTimeout(checkScroll, 100);
-      });
-
-      observer.observe(containerRef.current, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class'],
-      });
-
-      return () => observer.disconnect();
-    }
+  const check = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollWidth - el.clientWidth - el.scrollLeft > 4);
   }, []);
 
-  const handleScrollRightClick = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollBy({
-        left: scrollDistance,
-        behavior: 'smooth',
-      });
-    }
+  useEffect(() => {
+    check();
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    const mo = new MutationObserver(check);
+    mo.observe(el, { childList: true, subtree: false });
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [check]);
+
+  const page = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' });
   };
 
-  const handleScrollLeftClick = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollBy({
-        left: -scrollDistance,
-        behavior: 'smooth',
-      });
-    }
-  };
+  const arrow =
+    'atv-material absolute top-0 bottom-10 z-10 hidden w-10 items-center justify-center text-atv-label opacity-0 transition-opacity duration-200 group-hover/row:opacity-100 focus-visible:opacity-100 md:flex lg:w-12';
 
   return (
-    <div
-      className='relative'
-      onMouseEnter={() => {
-        setIsHovered(true);
-        // 当鼠标进入时重新检查一次
-        checkScroll();
-      }}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className='group/row relative'>
       <div
-        ref={containerRef}
-        className='flex space-x-6 overflow-x-auto scrollbar-hide py-1 sm:py-2 pb-12 sm:pb-14 px-4 sm:px-6'
-        onScroll={checkScroll}
+        ref={ref}
+        onScroll={check}
+        className={`scrollbar-hide flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain pb-2 pt-3 ${gap} ${GUTTER} scroll-px-4 sm:scroll-px-8 lg:scroll-px-12 2xl:scroll-px-16`}
       >
         {children}
+        {/* 右侧留白，最后一张卡片也能完整浮起 */}
+        <div aria-hidden className='w-px flex-shrink-0' />
       </div>
-      {showLeftScroll && (
-        <div
-          className={`hidden sm:flex absolute left-0 top-0 bottom-0 w-16 items-center justify-center z-[600] transition-opacity duration-200 ${
-            isHovered ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{
-            background: 'transparent',
-            pointerEvents: 'none', // 允许点击穿透
-          }}
+      {canLeft && (
+        <button
+          onClick={() => page(-1)}
+          className={`${arrow} left-0 rounded-r-2xl`}
+          aria-label='向左翻页'
         >
-          <div
-            className='absolute inset-0 flex items-center justify-center'
-            style={{
-              top: '40%',
-              bottom: '60%',
-              left: '-4.5rem',
-              pointerEvents: 'auto',
-            }}
-          >
-            <button
-              onClick={handleScrollLeftClick}
-              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center hover:bg-white border border-gray-200 transition-transform hover:scale-105 dark:bg-gray-800/90 dark:hover:bg-gray-700 dark:border-gray-600'
-            >
-              <ChevronLeft className='w-6 h-6 text-gray-600 dark:text-gray-300' />
-            </button>
-          </div>
-        </div>
+          <ChevronLeft className='h-7 w-7' strokeWidth={2.2} />
+        </button>
       )}
-
-      {showRightScroll && (
-        <div
-          className={`hidden sm:flex absolute right-0 top-0 bottom-0 w-16 items-center justify-center z-[600] transition-opacity duration-200 ${
-            isHovered ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{
-            background: 'transparent',
-            pointerEvents: 'none', // 允许点击穿透
-          }}
+      {canRight && (
+        <button
+          onClick={() => page(1)}
+          className={`${arrow} right-0 rounded-l-2xl`}
+          aria-label='向右翻页'
         >
-          <div
-            className='absolute inset-0 flex items-center justify-center'
-            style={{
-              top: '40%',
-              bottom: '60%',
-              right: '-4.5rem',
-              pointerEvents: 'auto',
-            }}
-          >
-            <button
-              onClick={handleScrollRightClick}
-              className='w-12 h-12 bg-white/95 rounded-full shadow-lg flex items-center justify-center hover:bg-white border border-gray-200 transition-transform hover:scale-105 dark:bg-gray-800/90 dark:hover:bg-gray-700 dark:border-gray-600'
-            >
-              <ChevronRight className='w-6 h-6 text-gray-600 dark:text-gray-300' />
-            </button>
-          </div>
-        </div>
+          <ChevronRight className='h-7 w-7' strokeWidth={2.2} />
+        </button>
       )}
     </div>
   );
 }
+
+/** 片架中单个卡片的宽度（与 snap 对齐） */
+export const SHELF_ITEM =
+  'w-[30vw] max-w-[9.5rem] flex-shrink-0 snap-start sm:w-40 sm:max-w-none lg:w-44 2xl:w-48';

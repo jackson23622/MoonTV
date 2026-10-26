@@ -1,19 +1,12 @@
 import { ImagePlaceholder } from '@/components/ImagePlaceholder';
 
+/** 网格卡片加载占位（与 VideoCard 尺寸一致） */
 const DoubanCardSkeleton = () => {
   return (
     <div className='w-full'>
-      <div className='group relative w-full rounded-lg bg-transparent shadow-none flex flex-col'>
-        {/* 图片占位符 - 骨架屏效果 */}
-        <ImagePlaceholder aspectRatio='aspect-[2/3]' />
-
-        {/* 信息层骨架 */}
-        <div className='absolute top-[calc(100%+0.5rem)] left-0 right-0'>
-          <div className='flex flex-col items-center justify-center'>
-            <div className='h-4 w-24 sm:w-32 bg-gray-200 rounded animate-pulse mb-2'></div>
-          </div>
-        </div>
-      </div>
+      <ImagePlaceholder aspectRatio='aspect-[2/3]' />
+      <div className='mt-2.5 h-3.5 w-3/4 rounded bg-atv-fill/15' />
+      <div className='mt-1.5 h-3 w-1/2 rounded bg-atv-fill/10' />
     </div>
   );
 };

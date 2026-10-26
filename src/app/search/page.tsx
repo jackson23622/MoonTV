@@ -16,6 +16,8 @@ import { rankSearchGroups, rankSearchResults } from '@/lib/search-rank';
 import { SearchResult } from '@/lib/types';
 
 import PageLayout from '@/components/PageLayout';
+import Spinner from '@/components/Spinner';
+import { GUTTER, POSTER_GRID } from '@/components/ui';
 import VideoCard from '@/components/VideoCard';
 
 function SearchPageClient() {
@@ -180,84 +182,101 @@ function SearchPageClient() {
     }
   };
 
+  const resultCount =
+    viewMode === 'agg' ? aggregatedResults.length : searchResults.length;
+
   return (
     <PageLayout activePath='/search'>
-      <div className='px-4 sm:px-10 py-4 sm:py-8 overflow-visible mb-10'>
+      <div className={`pt-4 sm:pt-8 ${GUTTER}`}>
+        <h1 className='atv-large-title mb-4 sm:mb-6'>搜索</h1>
+
         {/* 搜索框 */}
-        <div className='mb-8'>
-          <form onSubmit={handleSearch} className='max-w-2xl mx-auto'>
-            <div className='relative'>
-              <Search className='absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400 dark:text-gray-500' />
-              <input
-                id='searchInput'
-                type='text'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder='搜索电影、电视剧...'
-                className='w-full h-12 rounded-lg bg-gray-50/80 py-3 pl-10 pr-4 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-400 focus:bg-white border border-gray-200/50 shadow-sm dark:bg-gray-800 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:bg-gray-700 dark:border-gray-700'
-              />
-            </div>
-          </form>
-        </div>
+        <form onSubmit={handleSearch} role='search' className='max-w-2xl'>
+          <div className='relative'>
+            <Search className='pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-atv-secondary' />
+            <input
+              id='searchInput'
+              type='search'
+              enterKeyHint='search'
+              autoComplete='off'
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder='电影、剧集、综艺'
+              aria-label='搜索影片'
+              className='atv-input h-12 !rounded-xl pl-11 pr-11 !text-[17px] [&::-webkit-search-cancel-button]:hidden'
+            />
+            {searchQuery && (
+              <button
+                type='button'
+                onClick={() => {
+                  setSearchQuery('');
+                  document.getElementById('searchInput')?.focus();
+                }}
+                className='absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-atv-secondary/60 text-atv-bg transition-colors hover:bg-atv-secondary'
+                aria-label='清除输入'
+              >
+                <X className='h-3 w-3' strokeWidth={3} />
+              </button>
+            )}
+          </div>
+        </form>
 
         {/* 搜索结果或搜索历史 */}
-        <div className='max-w-[95%] mx-auto mt-12 overflow-visible'>
+        <div className='mt-8 sm:mt-10'>
           {isLoading ? (
-            <div className='flex justify-center items-center h-40'>
-              <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-green-500'></div>
+            <div className='flex h-40 items-center justify-center'>
+              <Spinner size={28} />
             </div>
           ) : showResults ? (
-            <section className='mb-12'>
-              {/* 标题 + 聚合开关 */}
-              <div className='mb-8 flex items-center justify-between'>
-                <h2 className='text-xl font-bold text-gray-800 dark:text-gray-200'>
+            <section>
+              <div className='mb-6 flex items-center justify-between gap-4'>
+                <h2 className='atv-section-title truncate'>
                   搜索结果
+                  {resultCount > 0 && (
+                    <span className='ml-2 text-base font-normal text-atv-secondary'>
+                      {resultCount}
+                    </span>
+                  )}
                 </h2>
                 {/* 聚合开关 */}
-                <label className='flex items-center gap-2 cursor-pointer select-none'>
-                  <span className='text-sm text-gray-700 dark:text-gray-300'>
-                    聚合
-                  </span>
-                  <div className='relative'>
+                <label className='flex shrink-0 cursor-pointer select-none items-center gap-2.5'>
+                  <span className='text-[15px] text-atv-label'>聚合片源</span>
+                  <span className='relative'>
                     <input
                       type='checkbox'
-                      className='sr-only peer'
+                      className='peer sr-only'
                       checked={viewMode === 'agg'}
                       onChange={() =>
                         setViewMode(viewMode === 'agg' ? 'all' : 'agg')
                       }
                     />
-                    <div className='w-9 h-5 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                    <div className='absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-4'></div>
-                  </div>
+                    <span className='block h-[31px] w-[51px] rounded-full bg-atv-fill/30 transition-colors duration-200 peer-checked:bg-atv-green peer-focus-visible:ring-2 peer-focus-visible:ring-atv-accent' />
+                    <span className='absolute left-[2px] top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow-md transition-transform duration-200 peer-checked:translate-x-5' />
+                  </span>
                 </label>
               </div>
-              <div
-                key={`search-results-${viewMode}`}
-                className='justify-start grid grid-cols-3 gap-x-2 gap-y-14 sm:gap-y-20 px-0 sm:px-2 sm:grid-cols-[repeat(auto-fill,_minmax(11rem,_1fr))] sm:gap-x-8'
-              >
-                {viewMode === 'agg'
-                  ? aggregatedResults.map(([mapKey, group]) => {
-                      return (
-                        <div key={`agg-${mapKey}`} className='w-full'>
-                          <VideoCard
-                            from='search'
-                            items={group}
-                            query={
-                              searchQuery.trim() !== group[0].title
-                                ? searchQuery.trim()
-                                : ''
-                            }
-                          />
-                        </div>
-                      );
-                    })
-                  : searchResults.map((item) => (
-                      <div
-                        key={`all-${item.source}-${item.id}`}
-                        className='w-full'
-                      >
+              {searchResults.length === 0 ? (
+                <p className='py-16 text-center text-atv-secondary'>
+                  没有找到“{resultQuery}”。试试更短的片名，或检查有没有错别字。
+                </p>
+              ) : (
+                <div key={`search-results-${viewMode}`} className={POSTER_GRID}>
+                  {viewMode === 'agg'
+                    ? aggregatedResults.map(([mapKey, group]) => (
                         <VideoCard
+                          key={`agg-${mapKey}`}
+                          from='search'
+                          items={group}
+                          query={
+                            searchQuery.trim() !== group[0].title
+                              ? searchQuery.trim()
+                              : ''
+                          }
+                        />
+                      ))
+                    : searchResults.map((item) => (
+                        <VideoCard
+                          key={`all-${item.source}-${item.id}`}
                           id={item.id}
                           title={item.title}
                           poster={item.poster}
@@ -274,34 +293,30 @@ function SearchPageClient() {
                           from='search'
                           type={item.episodes.length > 1 ? 'tv' : 'movie'}
                         />
-                      </div>
-                    ))}
-                {searchResults.length === 0 && (
-                  <div className='col-span-full text-center text-gray-500 py-8 dark:text-gray-400'>
-                    未找到相关结果
-                  </div>
-                )}
-              </div>
+                      ))}
+                </div>
+              )}
             </section>
           ) : searchHistory.length > 0 ? (
             // 搜索历史
-            <section className='mb-12'>
-              <h2 className='mb-4 text-xl font-bold text-gray-800 text-left dark:text-gray-200'>
-                搜索历史
-                {searchHistory.length > 0 && (
-                  <button
-                    onClick={() => {
-                      clearSearchHistory(); // 事件监听会自动更新界面
-                    }}
-                    className='ml-3 text-sm text-gray-500 hover:text-red-500 transition-colors dark:text-gray-400 dark:hover:text-red-500'
-                  >
-                    清空
-                  </button>
-                )}
-              </h2>
-              <div className='flex flex-wrap gap-2'>
+            <section>
+              <div className='mb-4 flex items-center justify-between'>
+                <h2 className='atv-section-title'>最近搜索</h2>
+                <button
+                  onClick={() => {
+                    clearSearchHistory(); // 事件监听会自动更新界面
+                  }}
+                  className='text-[15px] text-atv-accent hover:opacity-80'
+                >
+                  清除
+                </button>
+              </div>
+              <ul className='flex flex-wrap gap-2'>
                 {searchHistory.map((item) => (
-                  <div key={item} className='relative group'>
+                  <li
+                    key={item}
+                    className='group flex items-center rounded-full bg-atv-fill/[0.14] text-[15px] text-atv-label transition-colors hover:bg-atv-fill/25'
+                  >
                     <button
                       onClick={() => {
                         setSearchQuery(item);
@@ -309,41 +324,44 @@ function SearchPageClient() {
                           `/search?q=${encodeURIComponent(item.trim())}`
                         );
                       }}
-                      className='px-4 py-2 bg-gray-500/10 hover:bg-gray-300 rounded-full text-sm text-gray-700 transition-colors duration-200 dark:bg-gray-700/50 dark:hover:bg-gray-600 dark:text-gray-300'
+                      className='py-2 pl-4 pr-1'
                     >
                       {item}
                     </button>
-                    {/* 删除按钮 */}
                     <button
-                      aria-label='删除搜索历史'
+                      aria-label={`删除“${item}”`}
                       onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
                         deleteSearchHistory(item); // 事件监听会自动更新界面
                       }}
-                      className='absolute -top-1 -right-1 w-4 h-4 opacity-0 group-hover:opacity-100 bg-gray-400 hover:bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] transition-colors'
+                      className='mr-1.5 flex h-6 w-6 items-center justify-center rounded-full text-atv-tertiary transition-colors hover:bg-atv-fill/25 hover:text-atv-label'
                     >
-                      <X className='w-3 h-3' />
+                      <X className='h-3.5 w-3.5' />
                     </button>
-                  </div>
+                  </li>
                 ))}
-              </div>
+              </ul>
             </section>
-          ) : null}
+          ) : (
+            <p className='py-16 text-center text-atv-secondary'>
+              输入片名，搜索所有片源。
+            </p>
+          )}
         </div>
       </div>
 
-      {/* 返回顶部悬浮按钮 */}
+      {/* 返回顶部 */}
       <button
         onClick={scrollToTop}
-        className={`fixed bottom-20 md:bottom-6 right-6 z-[500] w-12 h-12 bg-green-500/90 hover:bg-green-500 text-white rounded-full shadow-lg backdrop-blur-sm transition-all duration-300 ease-in-out flex items-center justify-center group ${
+        className={`atv-material fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-[500] flex h-11 w-11 items-center justify-center rounded-full text-atv-label shadow-lg ring-1 ring-atv-separator/60 transition-all duration-300 md:bottom-6 md:right-6 ${
           showBackToTop
-            ? 'opacity-100 translate-y-0 pointer-events-auto'
-            : 'opacity-0 translate-y-4 pointer-events-none'
+            ? 'pointer-events-auto translate-y-0 opacity-100'
+            : 'pointer-events-none translate-y-4 opacity-0'
         }`}
         aria-label='返回顶部'
       >
-        <ChevronUp className='w-6 h-6 transition-transform group-hover:scale-110' />
+        <ChevronUp className='h-5 w-5' strokeWidth={2.5} />
       </button>
     </PageLayout>
   );
