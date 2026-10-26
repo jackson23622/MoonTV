@@ -1,4 +1,10 @@
 import {
+  Backdrop,
+  BackdropKind,
+  buildPhotosUrl,
+  pickBackdrop,
+} from './douban.backdrop';
+import {
   buildDoubanRecommendUrl,
   DoubanRecommendApiResponse,
   DoubanRecommendParams,
@@ -184,4 +190,37 @@ export async function getDoubanRecommends(
     throw new Error('获取豆瓣筛选数据失败');
   }
   return response.json();
+}
+
+const backdropCache = new Map<string, Promise<Backdrop | null>>();
+
+/**
+ * 首页大图用的横版剧照。设置了豆瓣代理时在浏览器端经代理请求，
+ * 否则走服务端 /api/douban/backdrop（带一天缓存）。失败返回 null。
+ */
+export function getDoubanBackdrop(
+  kind: BackdropKind,
+  id: string
+): Promise<Backdrop | null> {
+  const key = `${kind}:${id}`;
+  const cached = backdropCache.get(key);
+  if (cached) return cached;
+  const task = (async () => {
+    try {
+      if (shouldUseDoubanClient()) {
+        const res = await fetchWithTimeout(buildPhotosUrl(kind, id));
+        return res.ok ? pickBackdrop(await res.json()) : null;
+      }
+      const res = await fetch(
+        `/api/douban/backdrop?kind=${kind}&id=${encodeURIComponent(id)}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data?.url ? (data as Backdrop) : null;
+    } catch {
+      return null;
+    }
+  })();
+  backdropCache.set(key, task);
+  return task;
 }

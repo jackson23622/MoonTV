@@ -4,6 +4,8 @@ import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { Backdrop } from '@/lib/douban.backdrop';
+import { getDoubanBackdrop } from '@/lib/douban.client';
 import { DoubanItem } from '@/lib/types';
 import { getImageFallbackUrl, processImageUrl } from '@/lib/utils';
 
@@ -26,10 +28,15 @@ function HeroImage({
   src,
   className,
   eager,
+  onLoad,
+  onFail,
 }: {
   src: string;
   className: string;
   eager?: boolean;
+  onLoad?: () => void;
+  /** 所有地址都失败 */
+  onFail?: () => void;
 }) {
   const original = src;
   const [current, setCurrent] = useState(() =>
@@ -46,6 +53,7 @@ function HeroImage({
       loading={eager ? 'eager' : 'lazy'}
       referrerPolicy='no-referrer'
       className={className}
+      onLoad={onLoad}
       onError={() => {
         if (!triedOriginal.current && largePoster(original) !== original) {
           triedOriginal.current = true;
@@ -54,13 +62,34 @@ function HeroImage({
         }
         const next = getImageFallbackUrl(original, current);
         if (next) setCurrent(next);
+        else onFail?.();
       }}
     />
   );
 }
 
+/** 视口是否为桌面宽度（≥768px） */
+function useIsDesktop(): boolean | null {
+  const [desktop, setDesktop] = useState<boolean | null>(null);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+  return desktop;
+}
+
+/** 满屏高度：优先 100svh（手机地址栏不遮挡），旧浏览器回落 100vh */
+const HERO_HEIGHT =
+  'h-screen min-h-[520px] supports-[height:100svh]:h-[100svh]';
+
 /**
- * 首页大图轮播：模糊海报铺满背景，清晰海报与片名浮于其上。
+ * 首页大图轮播，铺满整屏：
+ *   桌面端 —— 豆瓣横版剧照铺满（加载完成后淡入）；影片没有合适剧照时，
+ *            回落为虚化海报背景 + 右侧清晰海报。
+ *   手机端 —— 清晰竖版海报铺满。
  * 始终使用深色（无论站点主题），7 秒自动切换，悬停 / 聚焦 / 减少动态效果时暂停。
  */
 export default function HeroCarousel({
@@ -74,6 +103,27 @@ export default function HeroCarousel({
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const count = slides.length;
+  const isDesktop = useIsDesktop();
+  // 每部影片的剧照：undefined 未取到 / null 没有合适的 / Backdrop
+  const [backdrops, setBackdrops] = useState<
+    Record<string, Backdrop | null | undefined>
+  >({});
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
+
+  // 桌面端才取剧照（手机端用竖版海报，省流量）
+  useEffect(() => {
+    if (!isDesktop || !count) return;
+    let alive = true;
+    slides.forEach((s) => {
+      const id = s.item.id;
+      getDoubanBackdrop(s.kind === 'movie' ? 'movie' : 'tv', id).then((b) => {
+        if (alive) setBackdrops((prev) => ({ ...prev, [id]: b }));
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isDesktop, count, slides]);
 
   const go = useCallback(
     (to: number) => setIndex(((to % count) + count) % count),
@@ -94,7 +144,9 @@ export default function HeroCarousel({
 
   if (loading || !count) {
     return (
-      <section className='dark relative h-[72vh] max-h-[860px] min-h-[460px] w-full overflow-hidden bg-black md:h-[78vh]'>
+      <section
+        className={`dark relative w-full overflow-hidden bg-black ${HERO_HEIGHT}`}
+      >
         <div
           className='absolute inset-0 opacity-60'
           style={{
@@ -119,7 +171,7 @@ export default function HeroCarousel({
 
   return (
     <section
-      className='group/hero dark relative h-[72vh] max-h-[860px] min-h-[460px] w-full overflow-hidden bg-black text-white md:h-[78vh]'
+      className={`group/hero dark relative w-full overflow-hidden bg-black text-white ${HERO_HEIGHT}`}
       aria-roledescription='carousel'
       aria-label='精选推荐'
       onMouseEnter={() => setPaused(true)}
@@ -156,7 +208,7 @@ export default function HeroCarousel({
           >
             {near && (
               <>
-                {/* 背景：手机端清晰海报铺满，桌面端放大虚化 */}
+                {/* 底图：手机端清晰海报铺满；桌面端放大虚化（剧照未到或没有剧照时可见） */}
                 <HeroImage
                   src={s.item.poster}
                   eager={i === 0}
@@ -164,15 +216,32 @@ export default function HeroCarousel({
                     active ? 'hero-zoom' : ''
                   }`}
                 />
+                {/* 桌面端：横版剧照铺满整屏 */}
+                {isDesktop && backdrops[s.item.id] && (
+                  <HeroImage
+                    key={backdrops[s.item.id]?.url}
+                    src={(backdrops[s.item.id] as Backdrop).url}
+                    eager={active}
+                    onLoad={() =>
+                      setLoaded((prev) => ({ ...prev, [s.item.id]: true }))
+                    }
+                    onFail={() =>
+                      setBackdrops((prev) => ({ ...prev, [s.item.id]: null }))
+                    }
+                    className={`absolute inset-0 h-full w-full object-cover object-center transition-opacity duration-700 ease-apple ${
+                      loaded[s.item.id] ? 'opacity-100' : 'opacity-0'
+                    } ${active ? 'hero-zoom-all' : ''}`}
+                  />
+                )}
               </>
             )}
           </div>
         );
       })}
 
-      {/* 文字可读性渐变（在虚化背景之上、清晰海报之下） */}
-      <div className='pointer-events-none absolute inset-0 bg-gradient-to-t from-black from-[22%] via-black/75 via-[42%] to-transparent to-[72%] md:from-black md:from-0% md:via-black/10 md:via-50% md:to-transparent md:to-100%' />
-      <div className='pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-black/75 via-black/30 to-transparent md:block' />
+      {/* 文字可读性渐变（在背景之上、清晰海报之下） */}
+      <div className='pointer-events-none absolute inset-0 bg-gradient-to-t from-black from-[22%] via-black/75 via-[42%] to-transparent to-[72%] md:from-black/90 md:from-0% md:via-black/20 md:via-35% md:to-transparent md:to-60%' />
+      <div className='pointer-events-none absolute inset-0 hidden bg-gradient-to-r from-black/80 via-black/35 via-40% to-transparent to-70% md:block' />
 
       {/* 桌面端：右侧清晰海报 */}
       {slides.map((s, i) => {
@@ -181,7 +250,8 @@ export default function HeroCarousel({
           active ||
           i === (index + 1) % count ||
           i === (index - 1 + count) % count;
-        if (!near) return null;
+        // 有剧照（或还在取）时不显示右侧海报，剧照本身就是主图
+        if (!near || !isDesktop || backdrops[s.item.id] !== null) return null;
         return (
           <div
             key={`poster-${s.item.id}`}
@@ -214,7 +284,7 @@ export default function HeroCarousel({
         return (
           <div
             key={`text-${s.item.id}`}
-            className={`absolute inset-x-0 bottom-0 pb-16 md:bottom-[14%] md:pb-0 ${GUTTER} transition-all duration-700 ease-apple ${
+            className={`absolute inset-x-0 bottom-0 pb-[calc(52px+env(safe-area-inset-bottom)+4.5rem)] md:bottom-[15%] md:pb-0 ${GUTTER} transition-all duration-700 ease-apple ${
               active
                 ? 'translate-y-0 opacity-100'
                 : 'pointer-events-none translate-y-3 opacity-0'
@@ -222,7 +292,7 @@ export default function HeroCarousel({
             aria-hidden={!active}
           >
             <div className='max-w-xl'>
-              <h2 className='text-[2.5rem] font-bold leading-[1.05] tracking-[-0.03em] [text-wrap:balance] sm:text-5xl lg:text-[4rem]'>
+              <h2 className='text-[2.5rem] font-bold leading-[1.05] tracking-[-0.03em] drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)] [text-wrap:balance] sm:text-5xl lg:text-[4.5rem]'>
                 {s.item.title}
               </h2>
               <p className='mt-3 flex flex-wrap items-center gap-x-3 text-[15px] font-medium text-white/75'>
@@ -272,7 +342,7 @@ export default function HeroCarousel({
             <ChevronRight className='h-6 w-6' />
           </button>
           <div
-            className={`absolute bottom-6 flex items-center gap-1.5 md:bottom-[7%] ${GUTTER} md:left-auto md:right-0`}
+            className={`absolute bottom-[calc(52px+env(safe-area-inset-bottom)+1.5rem)] flex items-center gap-1.5 md:bottom-[8%] ${GUTTER} md:left-auto md:right-0`}
           >
             {slides.map((s, i) => (
               <button
