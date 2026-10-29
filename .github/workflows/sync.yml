@@ -1,8 +1,7 @@
 name: Upstream Sync
 
+# 不定时自动同步上游（避免片源配置与代码被自动改动），需要时在 Actions 页面手动运行
 on:
-  schedule:
-    - cron: "0 */6 * * *" # run every 6 hours
   workflow_dispatch:
 
 permissions:
