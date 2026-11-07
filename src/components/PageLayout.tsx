@@ -22,7 +22,11 @@ const PageLayout = ({
         overlay={overlayHeader}
         showBack={showBack}
       />
-      <MobileHeader showBackButton={showBack} overlay={overlayHeader} />
+      <MobileHeader
+        showBackButton={showBack}
+        overlay={overlayHeader}
+        searchPage={activePath.startsWith('/search')}
+      />
 
       <main
         className={`min-w-0 pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-16 ${

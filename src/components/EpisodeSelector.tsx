@@ -9,6 +9,7 @@ import React, {
   useState,
 } from 'react';
 
+import { adLabel, adRisk, SourceTestResult } from '@/lib/source-pick';
 import { SearchResult } from '@/lib/types';
 import {
   getImageFallbackUrl,
@@ -23,8 +24,18 @@ interface VideoInfo {
   quality: string;
   loadSpeed: string;
   pingTime: number;
+  ads?: SourceTestResult['ads'];
   hasError?: boolean; // 添加错误状态标识
 }
+
+/** 去广告开关（与播放页一致，默认开启） */
+const blockAdOn = () => {
+  try {
+    return localStorage.getItem('enable_blockad') !== 'false';
+  } catch {
+    return true;
+  }
+};
 
 interface EpisodeSelectorProps {
   /** 总集数 */
@@ -588,6 +599,25 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
                                     <div className='flex items-end gap-3 text-xs tabular-nums text-atv-tertiary'>
                                       <span>{videoInfo.loadSpeed}</span>
                                       <span>{videoInfo.pingTime}ms</span>
+                                      {(() => {
+                                        const t = videoInfo as SourceTestResult;
+                                        const label = adLabel(t, blockAdOn());
+                                        if (!label) return null;
+                                        const risk = adRisk(t, blockAdOn());
+                                        return (
+                                          <span
+                                            className={
+                                              risk === 0
+                                                ? 'text-atv-green'
+                                                : risk === 1
+                                                ? 'text-atv-secondary'
+                                                : 'text-atv-red'
+                                            }
+                                          >
+                                            {label}
+                                          </span>
+                                        );
+                                      })()}
                                     </div>
                                   );
                                 } else {

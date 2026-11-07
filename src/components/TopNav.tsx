@@ -1,10 +1,11 @@
 'use client';
 
-import { ChevronLeft, Search } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { LogoutButton } from './LogoutButton';
+import NavSearch from './NavSearch';
 import { SettingsButton } from './SettingsButton';
 import { useSite } from './SiteProvider';
 import { ThemeToggle } from './ThemeToggle';
@@ -27,7 +28,6 @@ export default function TopNav({
   const { siteName } = useSite();
   const scrolled = useScrolled();
   const transparent = overlay && !scrolled;
-  const searchActive = activePath.startsWith('/search');
 
   return (
     <header
@@ -88,25 +88,8 @@ export default function TopNav({
         </ul>
 
         <div className='flex items-center gap-1'>
-          <Link
-            href='/search'
-            aria-current={searchActive ? 'page' : undefined}
-            className={`mr-2 hidden h-9 items-center gap-2 rounded-full px-3.5 text-sm transition-colors duration-200 lg:flex lg:w-52 ${
-              searchActive
-                ? 'bg-atv-fill/30 text-atv-label'
-                : 'bg-atv-fill/20 text-atv-secondary hover:bg-atv-fill/30'
-            }`}
-          >
-            <Search className='h-4 w-4' />
-            搜索
-          </Link>
-          <Link
-            href='/search'
-            className={`${ICON_BTN} lg:hidden`}
-            aria-label='搜索'
-          >
-            <Search className='h-[18px] w-[18px]' />
-          </Link>
+          {/* 全站唯一的搜索入口 */}
+          <NavSearch className='mr-2 w-36 lg:w-56' />
           <SettingsButton />
           <ThemeToggle />
           <LogoutButton />

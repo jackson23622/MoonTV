@@ -2,6 +2,11 @@
 
 import Hls from 'hls.js';
 
+import type { AdInfo } from './source-pick';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { analyzeAds } = require('./m3u8-adfilter');
+
 /**
  * 获取图片代理 URL 设置
  */
@@ -138,6 +143,7 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
   loadSpeed: string; // 自动转换为KB/s或MB/s
   pingTime: number; // 网络延迟（毫秒）
   bitrateKbps?: number; // 首个分片的码率（kbps），用于判断下载速度够不够流畅播放
+  ads?: AdInfo | null; // 插播广告分析，选源时无广告 / 可完全过滤的线路优先
 }> {
   try {
     // 直接使用m3u8 URL作为视频源，避免CORS问题
@@ -182,6 +188,17 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
       let hasMetadataLoaded = false;
 
       let fragmentStartTime = 0;
+      let ads: AdInfo | null | undefined;
+
+      // 媒体播放列表加载完：分析插播广告（hls.js 用 XHR 加载，原文在 networkDetails 里）
+      hls.on(Hls.Events.LEVEL_LOADED, (_event: any, data: any) => {
+        try {
+          const text = data?.networkDetails?.responseText;
+          if (typeof text === 'string' && text) ads = analyzeAds(text);
+        } catch {
+          ads = undefined;
+        }
+      });
 
       // 检查是否可以返回结果
       const checkAndResolve = () => {
@@ -214,6 +231,7 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
               loadSpeed: actualLoadSpeed,
               pingTime: Math.round(pingTime),
               bitrateKbps,
+              ads,
             });
           } else {
             // webkit 无法获取尺寸，直接返回
@@ -222,6 +240,7 @@ export async function getVideoResolutionFromM3u8(m3u8Url: string): Promise<{
               loadSpeed: actualLoadSpeed,
               pingTime: Math.round(pingTime),
               bitrateKbps,
+              ads,
             });
           }
         }

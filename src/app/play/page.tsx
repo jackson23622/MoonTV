@@ -50,6 +50,7 @@ import { GUTTER } from '@/components/ui';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { filterM3U8Ads } = require('@/lib/m3u8-adfilter');
 import {
+  adLabel,
   headroom,
   pickFallback,
   pickSmoothest,
@@ -275,6 +276,7 @@ function PlayPageClient() {
         loadSpeed: string;
         pingTime: number;
         bitrateKbps?: number;
+        ads?: SourceTestResult['ads'];
         hasError?: boolean;
       }
     >();
@@ -372,13 +374,16 @@ function PlayPageClient() {
 
     // 先保证流畅再追求画质：下载速度跟不上片源码率的（如网速不够的 4K）不选，
     // 流畅的源里 4K/2K 优先；都不流畅时选余量最大的（见 src/lib/source-pick.ts）
-    const picked = pickSmoothest(pool) ?? pool[0];
+    // 插播广告优先：无插播 / 能被完全过滤的线路优先，同档内再按流畅、画质选
+    const picked = pickSmoothest(pool, blockAdEnabledRef.current) ?? pool[0];
     const h = headroom(picked.testResult);
     console.log(
       `选中播放源：${picked.source.source_name}（${picked.testResult.quality}，` +
         `${picked.testResult.loadSpeed}，码率 ${
           picked.testResult.bitrateKbps ?? '未知'
-        } kbps，余量 ${h ? h.toFixed(2) : '未知'}）`
+        } kbps，余量 ${h ? h.toFixed(2) : '未知'}，广告 ${
+          adLabel(picked.testResult, blockAdEnabledRef.current) || '未知'
+        }）`
     );
     return picked.source;
   };
@@ -740,7 +745,12 @@ function PlayPageClient() {
       );
     const next =
       autoSwitchCountRef.current < MAX_AUTO_SWITCH
-        ? pickFallback(candidates, currentKey, autoSwitchTriedRef.current)
+        ? pickFallback(
+            candidates,
+            currentKey,
+            autoSwitchTriedRef.current,
+            blockAdEnabledRef.current
+          )
         : undefined;
     stallMonitorRef.current.reset();
     if (next && handleSourceChangeRef.current) {

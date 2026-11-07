@@ -1,6 +1,6 @@
 'use client';
 
-import { Clapperboard, House, Search, Sparkles, Tv } from 'lucide-react';
+import { Clapperboard, House, Sparkles, Tv } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -16,7 +16,6 @@ const ITEMS = [
   { icon: Clapperboard, label: '电影', href: '/douban?type=movie' },
   { icon: Tv, label: '剧集', href: '/douban?type=tv' },
   { icon: Sparkles, label: '综艺', href: '/douban?type=show' },
-  { icon: Search, label: '搜索', href: '/search' },
 ];
 
 /** 手机端底部标签栏（iOS 样式） */

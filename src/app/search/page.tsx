@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps, @typescript-eslint/no-explicit-any */
 'use client';
 
-import { ChevronUp, Search, X } from 'lucide-react';
+import { ChevronUp, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 
@@ -28,7 +28,6 @@ function SearchPageClient() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -67,9 +66,6 @@ function SearchPageClient() {
   }, [searchResults, resultQuery]);
 
   useEffect(() => {
-    // 无搜索参数时聚焦搜索框
-    !searchParams.get('q') && document.getElementById('searchInput')?.focus();
-
     // 初始加载搜索历史
     getSearchHistory().then(setSearchHistory);
 
@@ -123,7 +119,6 @@ function SearchPageClient() {
     // 当搜索参数变化时更新搜索状态
     const query = searchParams.get('q');
     if (query) {
-      setSearchQuery(query);
       fetchSearchResults(query);
 
       // 保存到搜索历史 (事件监听会自动更新界面)
@@ -150,24 +145,6 @@ function SearchPageClient() {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = searchQuery.trim().replace(/\s+/g, ' ');
-    if (!trimmed) return;
-
-    // 回显搜索框
-    setSearchQuery(trimmed);
-    setIsLoading(true);
-    setShowResults(true);
-
-    router.push(`/search?q=${encodeURIComponent(trimmed)}`);
-    // 直接发请求
-    fetchSearchResults(trimmed);
-
-    // 保存到搜索历史 (事件监听会自动更新界面)
-    addSearchHistory(trimmed);
-  };
-
   // 返回顶部功能
   const scrollToTop = () => {
     try {
@@ -188,41 +165,9 @@ function SearchPageClient() {
   return (
     <PageLayout activePath='/search'>
       <div className={`pt-4 sm:pt-8 ${GUTTER}`}>
-        <h1 className='atv-large-title mb-4 sm:mb-6'>搜索</h1>
-
-        {/* 搜索框 */}
-        <form onSubmit={handleSearch} role='search' className='max-w-2xl'>
-          <div className='relative'>
-            <Search className='pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-atv-secondary' />
-            <input
-              id='searchInput'
-              type='search'
-              enterKeyHint='search'
-              autoComplete='off'
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='电影、剧集、综艺'
-              aria-label='搜索影片'
-              className='atv-input h-12 !rounded-xl pl-11 pr-11 !text-[17px] [&::-webkit-search-cancel-button]:hidden'
-            />
-            {searchQuery && (
-              <button
-                type='button'
-                onClick={() => {
-                  setSearchQuery('');
-                  document.getElementById('searchInput')?.focus();
-                }}
-                className='absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full bg-atv-secondary/60 text-atv-bg transition-colors hover:bg-atv-secondary'
-                aria-label='清除输入'
-              >
-                <X className='h-3 w-3' strokeWidth={3} />
-              </button>
-            )}
-          </div>
-        </form>
-
+        {/* 搜索入口只有顶部导航栏右上方的搜索栏（NavSearch） */}
         {/* 搜索结果或搜索历史 */}
-        <div className='mt-8 sm:mt-10'>
+        <div>
           {isLoading ? (
             <div className='flex h-40 items-center justify-center'>
               <Spinner size={28} />
@@ -268,9 +213,7 @@ function SearchPageClient() {
                           from='search'
                           items={group}
                           query={
-                            searchQuery.trim() !== group[0].title
-                              ? searchQuery.trim()
-                              : ''
+                            resultQuery !== group[0].title ? resultQuery : ''
                           }
                         />
                       ))
@@ -284,11 +227,7 @@ function SearchPageClient() {
                           source={item.source}
                           source_name={item.source_name}
                           douban_id={item.douban_id?.toString()}
-                          query={
-                            searchQuery.trim() !== item.title
-                              ? searchQuery.trim()
-                              : ''
-                          }
+                          query={resultQuery !== item.title ? resultQuery : ''}
                           year={item.year}
                           from='search'
                           type={item.episodes.length > 1 ? 'tv' : 'movie'}
@@ -319,7 +258,6 @@ function SearchPageClient() {
                   >
                     <button
                       onClick={() => {
-                        setSearchQuery(item);
                         router.push(
                           `/search?q=${encodeURIComponent(item.trim())}`
                         );
@@ -345,7 +283,7 @@ function SearchPageClient() {
             </section>
           ) : (
             <p className='py-16 text-center text-atv-secondary'>
-              输入片名，搜索所有片源。
+              在右上方的搜索栏输入片名，搜索所有片源。
             </p>
           )}
         </div>
