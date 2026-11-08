@@ -50,10 +50,9 @@ import { GUTTER } from '@/components/ui';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { filterM3U8Ads } = require('@/lib/m3u8-adfilter');
 import {
-  adLabel,
   headroom,
   pickFallback,
-  pickSmoothest,
+  pickFastHd,
   SourceTestResult,
   StallMonitor,
 } from '@/lib/source-pick';
@@ -276,7 +275,6 @@ function PlayPageClient() {
         loadSpeed: string;
         pingTime: number;
         bitrateKbps?: number;
-        ads?: SourceTestResult['ads'];
         hasError?: boolean;
       }
     >();
@@ -372,18 +370,17 @@ function PlayPageClient() {
       console.warn('没有 1080p 及以上的播放源，已回退到全部可用源');
     }
 
-    // 先保证流畅再追求画质：下载速度跟不上片源码率的（如网速不够的 4K）不选，
-    // 流畅的源里 4K/2K 优先；都不流畅时选余量最大的（见 src/lib/source-pick.ts）
-    // 插播广告优先：无插播 / 能被完全过滤的线路优先，同档内再按流畅、画质选
-    const picked = pickSmoothest(pool, blockAdEnabledRef.current) ?? pool[0];
+    // 延迟快和高清优先：延迟接近最快的线路里选清晰度最高的（见 src/lib/source-pick.ts）。
+    // 播放中若持续卡顿，再按流畅度自动换源（handleSustainedStall）
+    const picked = pickFastHd(pool) ?? pool[0];
     const h = headroom(picked.testResult);
     console.log(
       `选中播放源：${picked.source.source_name}（${picked.testResult.quality}，` +
         `${picked.testResult.loadSpeed}，码率 ${
           picked.testResult.bitrateKbps ?? '未知'
-        } kbps，余量 ${h ? h.toFixed(2) : '未知'}，广告 ${
-          adLabel(picked.testResult, blockAdEnabledRef.current) || '未知'
-        }）`
+        } kbps，余量 ${h ? h.toFixed(2) : '未知'}，延迟 ${
+          picked.testResult.pingTime
+        }ms）`
     );
     return picked.source;
   };
@@ -745,12 +742,7 @@ function PlayPageClient() {
       );
     const next =
       autoSwitchCountRef.current < MAX_AUTO_SWITCH
-        ? pickFallback(
-            candidates,
-            currentKey,
-            autoSwitchTriedRef.current,
-            blockAdEnabledRef.current
-          )
+        ? pickFallback(candidates, currentKey, autoSwitchTriedRef.current)
         : undefined;
     stallMonitorRef.current.reset();
     if (next && handleSourceChangeRef.current) {

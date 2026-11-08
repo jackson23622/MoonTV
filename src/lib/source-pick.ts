@@ -1,11 +1,9 @@
 /**
  * 播放源选择与卡顿判断（纯函数，便于测试）。
  *
- * 选源原则：
- *   1. 插播广告优先：没有插播、或插播能被完全过滤掉的线路优先，可能漏过滤广告的线路靠后；
- *   2. 同一档里先保证流畅，再追求画质。
- *      余量 = 实测下载速度 ÷ 片源码率。余量不足时，画质再高也会边播边卡。
- *   所有线路都不流畅时，流畅优先于广告（卡到看不了比看到广告更糟）。
+ * 选源原则：延迟快和高清优先（pickFastHd）；
+ * 播放中持续卡顿时再按流畅度换源（pickFallback）：
+ *   余量 = 实测下载速度 ÷ 片源码率。余量不足时，画质再高也会边播边卡。
  */
 
 export interface SourceTestResult {
@@ -14,39 +12,6 @@ export interface SourceTestResult {
   pingTime: number;
   /** 首个分片的码率（kbps），测不到时为空 */
   bitrateKbps?: number;
-  /** 插播广告分析（m3u8-adfilter.analyzeAds），取不到播放列表时为空 */
-  ads?: AdInfo | null;
-}
-
-export interface AdInfo {
-  /** 能识别并过滤掉的广告段数 */
-  adBlocks: number;
-  adSeconds: number;
-  /** 过滤后仍保留、不像正片的短段数（可能漏过滤的插播） */
-  suspiciousBlocks: number;
-}
-
-/**
- * 广告风险档位，越小越好：
- *  0 无插播；1 有插播但能完全过滤（需开启去广告）；1.5 未知；
- *  2 可能漏过滤的插播，或关闭去广告时有插播。
- */
-export function adRisk(t: SourceTestResult, blockAd = true): number {
-  const a = t.ads;
-  if (!a) return 1.5;
-  if (a.suspiciousBlocks > 0) return 2;
-  if (a.adBlocks > 0) return blockAd ? 1 : 2;
-  return 0;
-}
-
-/** 选源列表里显示的广告标签 */
-export function adLabel(
-  t: SourceTestResult | undefined,
-  blockAd = true
-): string {
-  if (!t || !t.ads) return '';
-  const r = adRisk(t, blockAd);
-  return r === 0 ? '无广告' : r === 1 ? '已去广告' : '可能有广告';
 }
 
 /** 余量达到这个值视为流畅。测速时多个源并发下载，实测速度偏低，所以门槛不设太高 */
@@ -67,46 +32,71 @@ export function headroom(t: SourceTestResult): number | null {
 
 const isUhd = (q: string) => q === '4K' || q === '2K';
 
-/** 在一组候选里按流畅 → 画质选：流畅的源中 4K/2K 优先，否则按原顺序（综合评分） */
-function pickSmoothIn<T extends { testResult: SourceTestResult }>(
-  ranked: T[]
-): T | undefined {
-  const smooth = ranked.filter((r) => {
-    const h = headroom(r.testResult);
-    return h !== null && h >= SMOOTH_HEADROOM;
-  });
-  return smooth.find((r) => isUhd(r.testResult.quality)) || smooth[0];
-}
-
 /**
  * 从已按综合评分排好序的候选中选出播放源：
- *  1. 按广告风险从低到高逐档找，档内有流畅的源就选（4K/2K 优先，其次原顺序）；
+ *  1. 有余量数据且流畅的源中，4K/2K 优先，其次按原顺序（综合评分）；
  *  2. 都不流畅时，选余量最大的（最不容易卡）；
- *  3. 都没有余量数据时，选广告风险最低档里原顺序第一个。
+ *  3. 都没有余量数据时，沿用原顺序第一个。
  */
 export function pickSmoothest<T extends { testResult: SourceTestResult }>(
-  ranked: T[],
-  blockAd = true
+  ranked: T[]
 ): T | undefined {
   if (!ranked.length) return undefined;
-  const risks = Array.from(
-    new Set(ranked.map((r) => adRisk(r.testResult, blockAd)))
-  ).sort((a, b) => a - b);
-
-  for (const risk of risks) {
-    const picked = pickSmoothIn(
-      ranked.filter((r) => adRisk(r.testResult, blockAd) === risk)
-    );
-    if (picked) return picked;
-  }
-
   const withHeadroom = ranked
     .map((r) => ({ r, h: headroom(r.testResult) }))
     .filter((x): x is { r: T; h: number } => x.h !== null);
-  if (withHeadroom.length) {
-    return withHeadroom.reduce((a, b) => (b.h > a.h ? b : a)).r;
+  if (!withHeadroom.length) return ranked[0];
+
+  const smooth = withHeadroom.filter((x) => x.h >= SMOOTH_HEADROOM);
+  if (smooth.length) {
+    return (smooth.find((x) => isUhd(x.r.testResult.quality)) || smooth[0]).r;
   }
-  return ranked.find((r) => adRisk(r.testResult, blockAd) === risks[0]);
+  return withHeadroom.reduce((a, b) => (b.h > a.h ? b : a)).r;
+}
+
+/** 清晰度档位，越大越清晰；读不到分辨率（Safari 等）的「未知」排在 1080p 和 720p 之间 */
+const QUALITY_RANK: Record<string, number> = {
+  '4K': 5,
+  '2K': 4,
+  '1080p': 3,
+  未知: 2.5,
+  '720p': 2,
+  '480p': 1,
+  SD: 0,
+};
+export const qualityRank = (q: string) => QUALITY_RANK[q] ?? 0;
+
+/** 延迟比最快的线路慢不超过这么多，都算「快」 */
+export const FAST_PING_SLACK_MS = 150;
+
+/**
+ * 选源：延迟快和高清优先。
+ *  1. 先圈出「快」的线路：延迟不超过最快线路的 1.5 倍、或只慢 150ms 以内；
+ *  2. 快的线路里选清晰度最高的（4K > 2K > 1080p > …）；
+ *  3. 清晰度相同选延迟更低的，再相同沿用原顺序（综合评分）。
+ * 测不到延迟（0）的线路不参与第 1 步，只有全都测不到时才按清晰度选。
+ */
+export function pickFastHd<T extends { testResult: SourceTestResult }>(
+  ranked: T[]
+): T | undefined {
+  if (!ranked.length) return undefined;
+  const pings = ranked.map((r) => r.testResult.pingTime).filter((p) => p > 0);
+  let pool = ranked;
+  if (pings.length) {
+    const best = Math.min(...pings);
+    const limit = Math.max(best * 1.5, best + FAST_PING_SLACK_MS);
+    pool = ranked.filter(
+      (r) => r.testResult.pingTime > 0 && r.testResult.pingTime <= limit
+    );
+  }
+  return pool.reduce((a, b) => {
+    const qa = qualityRank(a.testResult.quality);
+    const qb = qualityRank(b.testResult.quality);
+    if (qb !== qa) return qb > qa ? b : a;
+    const pa = a.testResult.pingTime || Infinity;
+    const pb = b.testResult.pingTime || Infinity;
+    return pb < pa ? b : a;
+  });
 }
 
 /**
@@ -134,17 +124,12 @@ export class StallMonitor {
 }
 
 /**
- * 持续卡顿时挑一个替代源：余量比当前源高出 30% 以上、且流畅的源，广告风险低的优先，同档余量最大者优先；
+ * 持续卡顿时挑一个替代源：余量比当前源高出 30% 以上、且流畅的源，余量最大者优先；
  * 当前源没有余量数据时，只要候选流畅即可。没有合适的返回 undefined。
  */
 export function pickFallback<
   T extends { key: string; testResult: SourceTestResult }
->(
-  candidates: T[],
-  currentKey: string,
-  tried: Set<string>,
-  blockAd = true
-): T | undefined {
+>(candidates: T[], currentKey: string, tried: Set<string>): T | undefined {
   const current = candidates.find((c) => c.key === currentKey);
   const currentH = current ? headroom(current.testResult) : null;
   const options = candidates
@@ -156,11 +141,6 @@ export function pickFallback<
         x.h >= SMOOTH_HEADROOM &&
         (currentH === null || x.h >= currentH * 1.3)
     )
-    // 广告风险低的优先，同档余量大的优先
-    .sort(
-      (a, b) =>
-        adRisk(a.c.testResult, blockAd) - adRisk(b.c.testResult, blockAd) ||
-        b.h - a.h
-    );
+    .sort((a, b) => b.h - a.h);
   return options[0]?.c;
 }

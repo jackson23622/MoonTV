@@ -1,9 +1,8 @@
 import {
-  adLabel,
-  adRisk,
   headroom,
   parseSpeedKBps,
   pickFallback,
+  pickFastHd,
   pickSmoothest,
   StallMonitor,
 } from './source-pick';
@@ -90,101 +89,50 @@ describe('pickFallback', () => {
   });
 });
 
-describe('插播广告优先', () => {
-  const withAds = (
-    quality: string,
-    loadSpeed: string,
-    bitrateKbps: number,
-    ads: { adBlocks: number; suspiciousBlocks: number } | null
-  ) => ({
-    testResult: {
-      quality,
-      loadSpeed,
-      pingTime: 100,
-      bitrateKbps,
-      ads: ads && { ...ads, adSeconds: ads.adBlocks * 15 },
-    },
+describe('pickFastHd（延迟快和高清优先）', () => {
+  const s = (quality: string, pingTime: number) => ({
+    testResult: { quality, loadSpeed: '1.0 MB/s', pingTime },
   });
 
-  it('adRisk / adLabel 分档', () => {
-    const clean = withAds('1080p', '1.0 MB/s', 4000, {
-      adBlocks: 0,
-      suspiciousBlocks: 0,
-    }).testResult;
-    const filtered = withAds('1080p', '1.0 MB/s', 4000, {
-      adBlocks: 2,
-      suspiciousBlocks: 0,
-    }).testResult;
-    const risky = withAds('1080p', '1.0 MB/s', 4000, {
-      adBlocks: 1,
-      suspiciousBlocks: 1,
-    }).testResult;
-    const unknown = withAds('1080p', '1.0 MB/s', 4000, null).testResult;
-    expect(adRisk(clean)).toBe(0);
-    expect(adRisk(filtered)).toBe(1);
-    expect(adRisk(filtered, false)).toBe(2); // 关闭去广告时插播会播出来
-    expect(adRisk(risky)).toBe(2);
-    expect(adRisk(unknown)).toBe(1.5);
-    expect(adLabel(clean)).toBe('无广告');
-    expect(adLabel(filtered)).toBe('已去广告');
-    expect(adLabel(risky)).toBe('可能有广告');
-    expect(adLabel(unknown)).toBe('');
+  it('延迟接近最快的线路里选清晰度最高的', () => {
+    const fast1080 = s('1080p', 80);
+    const near4k = s('4K', 180); // 只慢 100ms，算快
+    const slow4k = s('4K', 900);
+    expect(pickFastHd([fast1080, near4k, slow4k])).toBe(near4k);
   });
 
-  it('流畅的前提下，无广告 / 可完全过滤的线路优先于画质和评分', () => {
-    const risky4k = withAds('4K', '6.0 MB/s', 16000, {
-      adBlocks: 0,
-      suspiciousBlocks: 2,
-    });
-    const filtered1080 = withAds('1080p', '1.2 MB/s', 5000, {
-      adBlocks: 3,
-      suspiciousBlocks: 0,
-    });
-    const clean1080 = withAds('1080p', '1.0 MB/s', 5000, {
-      adBlocks: 0,
-      suspiciousBlocks: 0,
-    });
-    expect(pickSmoothest([risky4k, filtered1080, clean1080])).toBe(clean1080);
-    expect(pickSmoothest([risky4k, filtered1080])).toBe(filtered1080);
+  it('高清线路延迟明显更高时，选延迟快的', () => {
+    const fast1080 = s('1080p', 80);
+    const slow4k = s('4K', 900);
+    expect(pickFastHd([slow4k, fast1080])).toBe(fast1080);
   });
 
-  it('低风险档都不流畅时，选高风险档里流畅的', () => {
-    const slowClean = withAds('1080p', '300.0 KB/s', 5000, {
-      adBlocks: 0,
-      suspiciousBlocks: 0,
-    }); // 0.49
-    const fastRisky = withAds('1080p', '2.0 MB/s', 5000, {
-      adBlocks: 0,
-      suspiciousBlocks: 1,
-    });
-    expect(pickSmoothest([slowClean, fastRisky])).toBe(fastRisky);
+  it('清晰度相同选延迟更低的', () => {
+    const a = s('1080p', 200);
+    const b = s('1080p', 120);
+    expect(pickFastHd([a, b])).toBe(b);
   });
 
-  it('没有余量数据时选风险最低的', () => {
-    const risky = withAds('1080p', '未知', 0, {
-      adBlocks: 0,
-      suspiciousBlocks: 1,
-    });
-    const clean = withAds('1080p', '未知', 0, {
-      adBlocks: 0,
-      suspiciousBlocks: 0,
-    });
-    expect(pickSmoothest([risky, clean])).toBe(clean);
+  it('慢 1.5 倍以内也算快（高延迟网络）', () => {
+    const fast = s('1080p', 1000);
+    const hd = s('2K', 1400);
+    expect(pickFastHd([fast, hd])).toBe(hd);
   });
 
-  it('卡顿换源时广告风险低的优先', () => {
-    const mk = (key: string, speed: string, suspicious: number) => ({
-      key,
-      ...withAds('1080p', speed, 5000, {
-        adBlocks: 0,
-        suspiciousBlocks: suspicious,
-      }),
-    });
-    const list = [
-      mk('cur', '500.0 KB/s', 0), // 0.82
-      mk('fastRisky', '3.0 MB/s', 1),
-      mk('okClean', '1.5 MB/s', 0),
-    ];
-    expect(pickFallback(list, 'cur', new Set())?.key).toBe('okClean');
+  it('测不到延迟的不参与；全都测不到时按清晰度', () => {
+    const unknown4k = s('4K', 0);
+    const ok1080 = s('1080p', 300);
+    expect(pickFastHd([unknown4k, ok1080])).toBe(ok1080);
+    expect(pickFastHd([s('1080p', 0), unknown4k])).toBe(unknown4k);
+    expect(pickFastHd([])).toBeUndefined();
+  });
+
+  it('未知分辨率排在 1080p 之后、720p 之前', () => {
+    expect(
+      pickFastHd([s('未知', 100), s('1080p', 100)])?.testResult.quality
+    ).toBe('1080p');
+    expect(
+      pickFastHd([s('720p', 100), s('未知', 100)])?.testResult.quality
+    ).toBe('未知');
   });
 });

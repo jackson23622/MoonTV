@@ -156,21 +156,8 @@ function filterM3U8Ads(m3u8) {
     (a, s, i) => a + (keep[i] ? 0 : s.duration),
     0
   );
-  // 保留下来、但既不是正片指纹又不长的段：拿不准，可能是没识别出来的插播
-  const suspiciousBlocks = stats.filter(
-    (s, i) =>
-      keep[i] && s.fingerprint !== mainFp && s.duration <= AD_MAX_BLOCK_SECONDS
-  ).length;
   if (keptDur === 0 || removedDur > keptDur) {
-    return {
-      content: m3u8,
-      removedBlocks: 0,
-      removedSeconds: 0,
-      // 判断失误时原样返回，片中的非正片段都算可疑
-      suspiciousBlocks: stats.filter(
-        (s) => s.fingerprint !== mainFp && s.duration <= AD_MAX_BLOCK_SECONDS
-      ).length,
-    };
+    return { content: m3u8, removedBlocks: 0, removedSeconds: 0 };
   }
 
   const out = [...header];
@@ -206,28 +193,7 @@ function filterM3U8Ads(m3u8) {
     content: out.join('\n') + '\n',
     removedBlocks,
     removedSeconds: Math.round(removedDur * 10) / 10,
-    suspiciousBlocks,
   };
 }
 
-/**
- * 分析媒体播放列表的插播广告情况（选源用）：
- *  - adBlocks / adSeconds：能识别并过滤掉的广告段数与时长
- *  - suspiciousBlocks：过滤后仍保留、但不像正片的短段——可能是没识别出来的插播，
- *    开着去广告也可能看到广告
- * 主播放列表或无法解析时返回 null。
- */
-function analyzeAds(m3u8) {
-  if (!m3u8 || typeof m3u8 !== 'string') return null;
-  if (m3u8.includes('#EXT-X-STREAM-INF') || !m3u8.includes('#EXTINF')) {
-    return null;
-  }
-  const r = filterM3U8Ads(m3u8);
-  return {
-    adBlocks: r.removedBlocks,
-    adSeconds: r.removedSeconds,
-    suspiciousBlocks: r.suspiciousBlocks || 0,
-  };
-}
-
-module.exports = { filterM3U8Ads, segmentFingerprint, analyzeAds };
+module.exports = { filterM3U8Ads, segmentFingerprint };
