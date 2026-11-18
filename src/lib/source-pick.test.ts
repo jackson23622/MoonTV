@@ -4,6 +4,7 @@ import {
   pickFallback,
   pickFastHd,
   pickSmoothest,
+  pickSource,
   StallMonitor,
 } from './source-pick';
 
@@ -134,5 +135,40 @@ describe('pickFastHd（延迟快和高清优先）', () => {
     expect(
       pickFastHd([s('720p', 100), s('未知', 100)])?.testResult.quality
     ).toBe('未知');
+  });
+});
+
+describe('pickSource（先流畅，再延迟快和高清）', () => {
+  const s = (
+    quality: string,
+    pingTime: number,
+    loadSpeed: string,
+    bitrateKbps?: number
+  ) => ({ testResult: { quality, loadSpeed, pingTime, bitrateKbps } });
+
+  it('延迟低的 4K 网速跟不上码率时不选，改选流畅的线路', () => {
+    const fastPing4k = s('4K', 60, '1.5 MB/s', 16000); // 余量 0.77，会卡
+    const smooth1080 = s('1080p', 150, '1.2 MB/s', 5000); // 余量 1.97
+    expect(pickSource([fastPing4k, smooth1080])).toBe(smooth1080);
+  });
+
+  it('流畅的线路里仍按延迟快和高清选', () => {
+    const smooth1080 = s('1080p', 80, '2.0 MB/s', 5000);
+    const smooth4k = s('4K', 150, '6.0 MB/s', 16000); // 余量 3.07，延迟只慢 70ms
+    const smoothSlow2k = s('2K', 900, '5.0 MB/s', 8000);
+    expect(pickSource([smooth1080, smoothSlow2k, smooth4k])).toBe(smooth4k);
+  });
+
+  it('都不流畅时选余量最大的', () => {
+    const a = s('4K', 50, '1.0 MB/s', 16000); // 0.51
+    const b = s('1080p', 300, '600.0 KB/s', 5000); // 0.98
+    expect(pickSource([a, b])).toBe(b);
+  });
+
+  it('没有余量数据时按延迟快和高清选', () => {
+    const a = s('1080p', 80, '未知');
+    const b = s('4K', 120, '未知');
+    expect(pickSource([a, b])).toBe(b);
+    expect(pickSource([])).toBeUndefined();
   });
 });

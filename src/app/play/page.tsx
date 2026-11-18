@@ -52,7 +52,7 @@ const { filterM3U8Ads } = require('@/lib/m3u8-adfilter');
 import {
   headroom,
   pickFallback,
-  pickFastHd,
+  pickSource,
   SourceTestResult,
   StallMonitor,
 } from '@/lib/source-pick';
@@ -370,9 +370,9 @@ function PlayPageClient() {
       console.warn('没有 1080p 及以上的播放源，已回退到全部可用源');
     }
 
-    // 延迟快和高清优先：延迟接近最快的线路里选清晰度最高的（见 src/lib/source-pick.ts）。
-    // 播放中若持续卡顿，再按流畅度自动换源（handleSustainedStall）
-    const picked = pickFastHd(pool) ?? pool[0];
+    // 先保证流畅（下载速度跟得上片源码率），流畅的线路里再按延迟快和高清选
+    // （见 src/lib/source-pick.ts）。播放中若持续卡顿，再按流畅度自动换源
+    const picked = pickSource(pool) ?? pool[0];
     const h = headroom(picked.testResult);
     console.log(
       `选中播放源：${picked.source.source_name}（${picked.testResult.quality}，` +

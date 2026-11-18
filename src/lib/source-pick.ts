@@ -1,9 +1,9 @@
 /**
  * 播放源选择与卡顿判断（纯函数，便于测试）。
  *
- * 选源原则：延迟快和高清优先（pickFastHd）；
- * 播放中持续卡顿时再按流畅度换源（pickFallback）：
- *   余量 = 实测下载速度 ÷ 片源码率。余量不足时，画质再高也会边播边卡。
+ * 选源原则（pickSource）：先保证流畅，流畅的线路里再按延迟快和高清优先。
+ *   余量 = 实测下载速度 ÷ 片源码率。余量不足时，画质再高、延迟再低也会边播边卡。
+ * 播放中持续卡顿时再按流畅度换源（pickFallback）。
  */
 
 export interface SourceTestResult {
@@ -97,6 +97,27 @@ export function pickFastHd<T extends { testResult: SourceTestResult }>(
     const pb = b.testResult.pingTime || Infinity;
     return pb < pa ? b : a;
   });
+}
+
+/**
+ * 自动选源：
+ *  1. 有余量数据且流畅（余量 >= SMOOTH_HEADROOM）的线路里，按延迟快和高清选（pickFastHd）；
+ *  2. 没有流畅的线路时，选余量最大的（最不容易卡）；
+ *  3. 都没有余量数据时，按延迟快和高清选。
+ */
+export function pickSource<T extends { testResult: SourceTestResult }>(
+  ranked: T[]
+): T | undefined {
+  if (!ranked.length) return undefined;
+  const withHeadroom = ranked
+    .map((r) => ({ r, h: headroom(r.testResult) }))
+    .filter((x): x is { r: T; h: number } => x.h !== null);
+  if (!withHeadroom.length) return pickFastHd(ranked);
+  const smooth = withHeadroom
+    .filter((x) => x.h >= SMOOTH_HEADROOM)
+    .map((x) => x.r);
+  if (smooth.length) return pickFastHd(smooth);
+  return withHeadroom.reduce((a, b) => (b.h > a.h ? b : a)).r;
 }
 
 /**
